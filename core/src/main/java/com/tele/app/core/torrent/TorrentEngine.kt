@@ -38,7 +38,7 @@ class TorrentEngine @constructor(
             setAlertMask(alert_category.all_categories.toInt())
         }).apply {
             // Configuración orientada a streaming secuencial
-            val settings = settings_pack {
+            val settings = settings_pack().apply {
                 sequentialDownload = true
                 allowMultipleConnections = true
             }
