@@ -6,11 +6,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.tele.app.core.torrent.TorrentEngine
 import com.tele.app.tv.domain.usecase.StartTorrentStreamUseCase
 
-class TorrentStreamViewModel(
-    private val startTorrentStream: StartTorrentStreamUseCase
-) : ViewModel() {
+class TorrentStreamViewModel : ViewModel() {
+
+    private val engine = TorrentEngine(viewModelScope)
+    private val useCase = StartTorrentStreamUseCase(engine)
 
     private val _streamUrl = MutableStateFlow<String?>(null)
     private val _isLoading = MutableStateFlow(false)
@@ -25,7 +27,7 @@ class TorrentStreamViewModel(
             _error.value = null
             _isLoading.value = true
             try {
-                startTorrentStream(magnetUri, fileIndex).collect { url ->
+                useCase(magnetUri, fileIndex).collect { url ->
                     _streamUrl.value = url
                     _isLoading.value = false
                 }

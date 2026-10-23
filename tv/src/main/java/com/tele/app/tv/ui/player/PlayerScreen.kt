@@ -4,11 +4,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.compose.material3.Surface
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 
 @Composable
 fun PlayerScreen(
@@ -40,25 +42,16 @@ fun PlayerScreen(
         }
     }
 
-    androidx.compose.material3.Surface(
-        modifier = modifier.fillMaxSize(),
-        color = androidx.compose.material3.MaterialTheme.colorScheme.background
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.background
     ) {
         if (isLoading) {
-            androidx.compose.material3.Text(
-                text = "Preparando stream de torrent...",
-                modifier = Modifier.align(Alignment.Center)
-            )
+            Text(text = "Preparando stream de torrent...")
         } else if (error != null) {
-            androidx.compose.material3.Text(
-                text = "Error: $error",
-                modifier = Modifier.align(Alignment.Center)
-            )
+            Text(text = "Error: $error")
         } else {
-            androidx.compose.material3.Text(
-                text = "Reproductor de video (placeholder)",
-                modifier = Modifier.align(Alignment.Center)
-            )
+            Text(text = "Reproductor de video (placeholder)")
         }
     }
 }
