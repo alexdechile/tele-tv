@@ -1,6 +1,8 @@
 plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.hilt.android)
+    alias(libs.plugins.compose.compiler)
+    id("com.android.application") version "8.5.0"
 }
 
 android {
@@ -18,13 +20,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
-    }
-    kotlinOptions {
-        jvmTarget = "1.8"
-        freeCompilerArgs += [
-            "-opt-in=androidx.tv.material3.ExperimentalTvMaterial3Api",
-            "-opt-in=androidx.media3.common.ExperimentalMedia3Api"
-        ]
     }
 
     buildFeatures {
