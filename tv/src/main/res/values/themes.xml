@@ -1,5 +1,5 @@
 <resources>
-    <style name="Theme.TeleTv" parent="android:Theme.Leanback">
+    <style name="Theme.TeleTv">
         <item name="android:windowBackground">@color/black</item>
     </style>
 </resources>
