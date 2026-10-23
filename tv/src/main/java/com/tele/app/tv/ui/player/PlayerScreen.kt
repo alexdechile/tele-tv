@@ -1,9 +1,5 @@
 package com.tele.app.tv.ui.player
 
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -19,10 +15,9 @@ fun PlayerScreen(
     magnetUri: String,
     fileIndex: Int,
     onBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: TorrentStreamViewModel = remember { TorrentStreamViewModel() }
 ) {
-    val viewModel: TorrentStreamViewModel = remember { TorrentStreamViewModel() }
-
     val streamUrl by viewModel.streamUrl.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
@@ -45,24 +40,22 @@ fun PlayerScreen(
         }
     }
 
-    Surface(
+    androidx.compose.material3.Surface(
         modifier = modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
+        color = androidx.compose.material3.MaterialTheme.colorScheme.background
     ) {
         if (isLoading) {
-            Text(
+            androidx.compose.material3.Text(
                 text = "Preparando stream de torrent...",
                 modifier = Modifier.align(Alignment.Center)
             )
         } else if (error != null) {
-            Text(
+            androidx.compose.material3.Text(
                 text = "Error: $error",
                 modifier = Modifier.align(Alignment.Center)
             )
         } else {
-            // TODO: Reemplazar por Video(player = player) cuando se añada
-            //       una integración Compose válida para ExoPlayer.
-            Text(
+            androidx.compose.material3.Text(
                 text = "Reproductor de video (placeholder)",
                 modifier = Modifier.align(Alignment.Center)
             )

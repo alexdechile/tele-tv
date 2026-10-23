@@ -1,9 +1,8 @@
 package com.tele.app.tv.ui.main
 
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.tv.material3.Text
 import com.tele.app.tv.domain.model.AddonItem
 
@@ -15,8 +14,6 @@ fun MainScreen(
 ) {
     Text(
         text = "Catálogo de addons (${items.size} ítems)",
-        modifier = modifier
-            .fillMaxSize()
-            .align(Alignment.Center)
+        modifier = modifier.fillMaxSize()
     )
 }

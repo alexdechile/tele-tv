@@ -1,35 +1,38 @@
 package com.tele.app.tv.ui.player
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.MutableStateFlow
-import androidx.compose.runtime.StateFlow
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.value
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import com.tele.app.tv.domain.usecase.StartTorrentStreamUseCase
 
 class TorrentStreamViewModel(
     private val startTorrentStream: StartTorrentStreamUseCase
-) {
+) : ViewModel() {
 
-    private val _streamUrl = mutableStateOf<String?>(null)
-    private val _isLoading = mutableStateOf(false)
-    private val _error = mutableStateOf<String?>(null)
+    private val _streamUrl = MutableStateFlow<String?>(null)
+    private val _isLoading = MutableStateFlow(false)
+    private val _error = MutableStateFlow<String?>(null)
 
-    val streamUrl: String? by _streamUrl
-    val isLoading: Boolean by _isLoading
-    val error: String? by _error
+    val streamUrl: StateFlow<String?> = _streamUrl.asStateFlow()
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    val error: StateFlow<String?> = _error.asStateFlow()
 
     fun start(magnetUri: String, fileIndex: Int) {
-        _error.value = null
-        _isLoading.value = true
-        try {
-            startTorrentStream(magnetUri, fileIndex).collect { url ->
-                _streamUrl.value = url
+        viewModelScope.launch {
+            _error.value = null
+            _isLoading.value = true
+            try {
+                startTorrentStream(magnetUri, fileIndex).collect { url ->
+                    _streamUrl.value = url
+                    _isLoading.value = false
+                }
+            } catch (e: Exception) {
+                _error.value = e.message
                 _isLoading.value = false
             }
-        } catch (e: Exception) {
-            _error.value = e.message
-            _isLoading.value = false
         }
     }
 
