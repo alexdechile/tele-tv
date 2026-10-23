@@ -6,17 +6,16 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.lifecycle.viewmodel.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsStateWithLifecycle
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.tv.material3.focus.focusRestorer
 import androidx.tv.material3.focus.focusRequester
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.compose.Video
 
 @Composable
 fun PlayerScreen(
@@ -67,9 +66,11 @@ fun PlayerScreen(
                 modifier = Modifier.align(Alignment.Center)
             )
         } else {
-            Video(
-                player = player,
-                modifier = Modifier.fillMaxSize()
+            // TODO: Reemplazar por Video(player = player) cuando se añada
+            //       androidx.media3:media3-ui-compose o equivalente.
+            Text(
+                text = "Reproductor de video (placeholder)",
+                modifier = Modifier.align(Alignment.Center)
             )
         }
     }

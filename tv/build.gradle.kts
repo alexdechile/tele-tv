@@ -44,7 +44,7 @@ dependencies {
     implementation(libs.compose.tv.material)
 
     implementation(libs.media3.exoplayer)
-    implementation(libs.media3.ui.compose)
+    implementation(libs.media3.ui)
     implementation(libs.media3.datasource)
 
     implementation(libs.hilt.android)
