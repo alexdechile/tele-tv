@@ -6,14 +6,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.lifecycle.viewmodel.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.tv.material3.focus.focusRestorer
-import androidx.tv.material3.focus.focusRequester
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 
@@ -24,11 +21,11 @@ fun PlayerScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val viewModel: TorrentStreamViewModel = hiltViewModel()
+    val viewModel: TorrentStreamViewModel = remember { TorrentStreamViewModel() }
 
-    var streamUrl by viewModel.streamUrl.collectAsStateWithLifecycle()
-    var isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
-    var error by viewModel.error.collectAsStateWithLifecycle()
+    val streamUrl by viewModel.streamUrl.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
 
     val context = LocalContext.current
     val player = remember {
@@ -49,10 +46,7 @@ fun PlayerScreen(
     }
 
     Surface(
-        modifier = modifier
-            .fillMaxSize()
-            .focusRequester { /* requester -> requestFocus() */ }
-            .focusRestorer(),
+        modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
     ) {
         if (isLoading) {
@@ -67,7 +61,7 @@ fun PlayerScreen(
             )
         } else {
             // TODO: Reemplazar por Video(player = player) cuando se añada
-            //       androidx.media3:media3-ui-compose o equivalente.
+            //       una integración Compose válida para ExoPlayer.
             Text(
                 text = "Reproductor de video (placeholder)",
                 modifier = Modifier.align(Alignment.Center)
