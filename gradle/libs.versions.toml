@@ -12,7 +12,7 @@ room = "2.6.1"
 retrofit = "2.11.0"
 okhttp = "4.12.0"
 kotlinx-coroutines = "1.8.0"
-libtorrent4j = "1.2.11"
+libtorrent4j = "1.2.3.0"
 androidx-navigation-compose = "2.8.2"
 androidx-lifecycle-viewmodel-compose = "2.8.2"
 
@@ -39,7 +39,7 @@ retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = 
 retrofit-converter-gson = { group = "com.squareup.retrofit2", name = "converter-gson", version.ref = "retrofit" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinx-coroutines" }
-libtorrent4j = { group = "org.libtorrent", name = "libtorrent4j", version.ref = "libtorrent4j" }
+libtorrent4j = { group = "org.libtorrent4j", name = "libtorrent4j", version.ref = "libtorrent4j" }
 
 [plugins]
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
