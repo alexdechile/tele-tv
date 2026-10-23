@@ -6,11 +6,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.media3.common.MediaItem
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.compose.material3.Surface
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.ExoPlayer
 
 @Composable
 fun PlayerScreen(
@@ -20,9 +20,13 @@ fun PlayerScreen(
     modifier: Modifier = Modifier,
     viewModel: TorrentStreamViewModel = remember { TorrentStreamViewModel() }
 ) {
-    val streamUrl by viewModel.streamUrl.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val error by viewModel.error.collectAsState()
+    val streamUrlState = viewModel.streamUrl.collectAsState()
+    val isLoadingState = viewModel.isLoading.collectAsState()
+    val errorState = viewModel.error.collectAsState()
+
+    val streamUrl = streamUrlState.value
+    val isLoading = isLoadingState.value
+    val error = errorState.value
 
     val context = LocalContext.current
     val player = remember {
