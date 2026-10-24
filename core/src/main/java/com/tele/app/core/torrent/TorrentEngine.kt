@@ -30,9 +30,8 @@ import java.io.File
  *
  * ExoPlayer nunca ve el torrent: recibe `http://127.0.0.1:PORT/stream`.
  */
-class TorrentEngine(saveDir: File) {
+class TorrentEngine(private val saveDir: File) {
 
-    private val saveDir: File
     private val lock = Any()
 
     private var sessionManager: SessionManager? = null
