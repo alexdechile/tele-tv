@@ -37,6 +37,7 @@ dependencies {
 val linuxNative: Configuration by configurations.creating {
     isCanBeConsumed = false
     isCanBeResolved = true
+    isTransitive = false // solo el jar del binario, no sus dependencias
 }
 
 dependencies {
@@ -47,7 +48,10 @@ val nativeTestDir = layout.buildDirectory.dir("native-test")
 
 // Extrae lib/x86_64/libtorrent4j.so del jar de Linux para que la JVM lo cargue.
 val extractLinuxNative = tasks.register<Copy>("extractLinuxNative") {
-    from({ zipTree(linuxNative.singleFile) }) {
+    from({
+        val jar = linuxNative.files.first { it.name.startsWith("libtorrent4j-linux") }
+        zipTree(jar)
+    }) {
         include("lib/x86_64/*.so")
     }
     into(nativeTestDir)
