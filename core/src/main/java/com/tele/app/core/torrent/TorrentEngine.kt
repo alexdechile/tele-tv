@@ -1,6 +1,5 @@
 package com.tele.app.core.torrent
 
-import android.content.Context
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -31,9 +30,9 @@ import java.io.File
  *
  * ExoPlayer nunca ve el torrent: recibe `http://127.0.0.1:PORT/stream`.
  */
-class TorrentEngine(context: Context) {
+class TorrentEngine(saveDir: File) {
 
-    private val saveDir: File = File(context.applicationContext.cacheDir, "torrents")
+    private val saveDir: File
     private val lock = Any()
 
     private var sessionManager: SessionManager? = null
@@ -41,7 +40,7 @@ class TorrentEngine(context: Context) {
     private var activeHandle: TorrentHandle? = null
 
     init {
-        saveDir.mkdirs()
+        this.saveDir.mkdirs()
     }
 
     /** Prepara el stream y emite su estado; termina cuando se cancela la corrutina. */

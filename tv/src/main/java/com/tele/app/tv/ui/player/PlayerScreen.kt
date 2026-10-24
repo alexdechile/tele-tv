@@ -26,6 +26,7 @@ import androidx.tv.material3.Text
 import com.tele.app.core.torrent.TorrentEngine
 import com.tele.app.core.torrent.TorrentStreamState
 import com.tele.app.tv.ui.navigation.PlaybackRequest
+import java.io.File
 import java.util.Locale
 
 /**
@@ -41,7 +42,9 @@ fun PlayerScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val engine = remember(context) { TorrentEngine(context.applicationContext) }
+    val engine = remember(context) {
+        TorrentEngine(File(context.cacheDir, "torrents"))
+    }
     val viewModel = remember(engine) { TorrentStreamViewModel(engine) }
 
     var playerError by remember { mutableStateOf<String?>(null) }

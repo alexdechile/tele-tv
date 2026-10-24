@@ -30,4 +30,29 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.junit)
+    // En la JVM de los tests usamos el binario nativo de Linux para ejercitar
+    // libtorrent4j de verdad (las .so de Android son bionic y no cargan aca).
+    testImplementation(libs.libtorrent4jNativeLinux)
+}
+
+val nativeTestDir = layout.buildDirectory.dir("native-test")
+
+// Extrae lib/x86_64/libtorrent4j.so del jar de Linux para que la JVM lo cargue.
+val extractLinuxNative by tasks.registering(Copy::class) {
+    from({
+        val jar = configurations.getByName("testRuntimeClasspath").files
+            .firstOrNull { it.name.startsWith("libtorrent4j-linux") }
+        if (jar != null) listOf(zipTree(jar)) else emptyList<Any>()
+    }) {
+        include("lib/x86_64/*.so")
+    }
+    into(nativeTestDir)
+}
+
+tasks.withType<Test>().configureEach {
+    dependsOn(extractLinuxNative)
+    systemProperty(
+        "java.library.path",
+        nativeTestDir.get().dir("lib/x86_64").asFile.absolutePath
+    )
 }

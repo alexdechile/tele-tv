@@ -29,6 +29,14 @@ jobs:
 
       # Falla el build si el binario nativo de libtorrent no quedó empaquetado:
       # compilaría igual, pero la app reventaría en la TV con UnsatisfiedLinkError.
+      # Guarda contra "los tests no corrieron" (Gradle puede saltearlos en silencio).
+      - name: Verificar que los tests se ejecutaron
+        run: |
+          set -e
+          FILES=$(find core/build/test-results -name 'TEST-*.xml' | wc -l)
+          echo "archivos de resultados: $FILES"
+          grep -h -o 'tests="[0-9]*" failures="[0-9]*" errors="[0-9]*"' core/build/test-results/testDebugUnitTest/*.xml
+
       - name: Verificar libtorrent4j.so en el APK
         run: |
           APK=$(ls tv/build/outputs/apk/debug/*.apk | head -1)
