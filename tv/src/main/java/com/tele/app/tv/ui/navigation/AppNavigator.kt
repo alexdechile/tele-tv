@@ -1,11 +1,18 @@
 package com.tele.app.tv.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.tele.app.data.addon.TorrentLinks
+import com.tele.app.data.addon.model.StreamSource
 import com.tele.app.tv.ui.detail.DetailScreen
 import com.tele.app.tv.ui.main.MainScreen
+import com.tele.app.tv.ui.main.MainViewModel
 import com.tele.app.tv.ui.player.PlayerScreen
 
 @Composable
@@ -14,31 +21,58 @@ fun AppNavigator() {
 
     NavHost(
         navController = navController,
-        startDestination = "main"
+        startDestination = ROUTE_MAIN
     ) {
-        composable("main") {
-            MainScreen(onItemSelected = { item ->
-                navController.navigate("detail/${item.id}")
-            })
-        }
+        composable(ROUTE_MAIN) {
+            val viewModel: MainViewModel = viewModel()
+            val state by viewModel.state.collectAsState()
 
-        composable("detail/{id}") { backStackEntry ->
-            val id = backStackEntry.arguments?.getString("id") ?: ""
-            DetailScreen(
-                itemId = id,
-                onPlay = { magnetUri, fileIndex ->
-                    navController.navigate("player?magnet=$magnetUri&file=$fileIndex")
-                }
+            MainScreen(
+                state = state,
+                onItemSelected = { meta ->
+                    NavPayload.selectedMeta = meta
+                    navController.navigate(ROUTE_DETAIL)
+                },
+                onRetry = { viewModel.refresh() }
             )
         }
 
-        composable("player") { backStackEntry ->
-            val args = backStackEntry.arguments ?: return@composable
-            PlayerScreen(
-                magnetUri = args.getString("magnet") ?: "",
-                fileIndex = args.getInt("file", 0),
-                onBack = { navController.popBackStack() }
-            )
+        composable(ROUTE_DETAIL) {
+            val meta = NavPayload.selectedMeta
+            if (meta == null) {
+                // Se llegó aquí sin selección (por ejemplo, tras recrear la Activity).
+                LaunchedEffect(Unit) { navController.popBackStack() }
+            } else {
+                DetailScreen(
+                    meta = meta,
+                    onPlay = { stream ->
+                        NavPayload.playback = stream.toPlaybackRequest(meta.name)
+                        navController.navigate(ROUTE_PLAYER)
+                    }
+                )
+            }
+        }
+
+        composable(ROUTE_PLAYER) {
+            PlayerScreen(request = NavPayload.playback)
         }
     }
 }
+
+private fun StreamSource.toPlaybackRequest(title: String?): PlaybackRequest? {
+    val magnet = when {
+        !infoHash.isNullOrBlank() -> TorrentLinks.magnet(infoHash, fileName ?: title)
+        !url.isNullOrBlank() -> url
+        else -> null
+    } ?: return null
+
+    return PlaybackRequest(
+        magnetUri = magnet,
+        fileIndex = fileIndex ?: 0,
+        title = title
+    )
+}
+
+private const val ROUTE_MAIN = "main"
+private const val ROUTE_DETAIL = "detail"
+private const val ROUTE_PLAYER = "player"

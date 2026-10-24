@@ -46,6 +46,7 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(libs.compose.material)
     implementation(libs.compose.tv.material)
+    implementation(libs.coil.compose)
 
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.ui)
