@@ -60,7 +60,8 @@ Por eso `:tv` construye el reproductor con `AudioAwareRenderersFactory`, que iny
 
 1. **Passthrough (bitstream)** si el televisor/receptor acepta AC3 por HDMI (`AudioCapabilities`).
 2. **Decodificador de plataforma** (`MediaCodecList`), típico en chips Amlogic con licencia.
-3. **Offload al DSP** (`AudioManager.isOffloadedPlaybackSupported`, API 29+).
+
+(Si ninguno está disponible, el overlay lo dice con `⚠ elige otra fuente`.)
 
 El overlay del reproductor muestra qué pista trae la fuente y por qué camino sale
 (`Audio: AC3 (passthrough HDMI)`), y avisa con `⚠ elige otra fuente` si el equipo no

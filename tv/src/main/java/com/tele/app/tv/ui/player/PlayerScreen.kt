@@ -187,7 +187,6 @@ private fun audioText(
         support == null -> "sin datos del equipo"
         support.passthrough -> "passthrough HDMI"
         support.hasDecoder -> "decoder del equipo"
-        support.offload -> "offload DSP"
         else -> "SIN SOPORTE"
     }
 
