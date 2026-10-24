@@ -132,6 +132,8 @@ fun PlayerScreen(
             factory = { ctx ->
                 PlayerView(ctx).apply {
                     useController = true
+                    // En una tablet la pantalla se apaga sola; en la TV no molesta.
+                    keepScreenOn = true
                     this.player = player
                 }
             },

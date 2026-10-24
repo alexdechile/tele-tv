@@ -2,9 +2,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.tele.app.tv">
 
+    <!--
+      Destino principal: Android TV. Se declara como "no obligatorio" para que
+      el mismo APK se pueda instalar y abrir en una tablet o un telefono; la UI
+      sigue siendo de 10-foot (foco / D-pad), no adaptada a tactil.
+    -->
     <uses-feature
         android:name="android.hardware.type.television"
-        android:required="true" />
+        android:required="false" />
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false" />
     <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" />
@@ -27,9 +35,15 @@
             android:label="@string/app_name"
             android:launchMode="singleTop"
             android:screenOrientation="landscape">
+            <!-- LEANBACK_LAUNCHER: launcher de Android TV -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+            <!-- LAUNCHER: cajon de apps en tablet/telefono -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
