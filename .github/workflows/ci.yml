@@ -76,3 +76,66 @@ jobs:
           path: tv/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 30
+
+  # Arranca la app de verdad en un emulador y falla si se cierra al abrir.
+  # Esto es lo que faltaba: "compila" no era lo mismo que "abre".
+  smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar APK
+        uses: actions/download-artifact@v4
+        with:
+          name: tele-tv-debug
+          path: apk
+
+      - name: Habilitar KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Arrancar app en emulador
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: |
+            set -x
+            adb install -r apk/tv-debug.apk
+            adb shell am start -W -n com.tele.app.tv/.ui.MainActivity
+            sleep 25
+            if adb shell pidof com.tele.app.tv; then
+              echo "OK: la app sigue viva"
+            else
+              echo "::error::La app se cerro al abrir"
+              echo "===== CRASH BUFFER ====="
+              adb logcat -d -b crash | tail -120
+              echo "===== FATAL ====="
+              adb logcat -d | grep -iE "androidruntime|fatal exception|com.tele.app.tv" | tail -120
+              exit 1
+            fi
+            echo "===== LOGCAT (muestra) ====="
+            adb logcat -d -s TeleTvAudio:I AndroidRuntime:E | tail -60
+
+      - name: Guardar logcat
+        if: always()
+        run: |
+          adb logcat -d > logcat-completo.txt || true
+          adb logcat -d -b crash > logcat-crash.txt || true
+          wc -l logcat-completo.txt logcat-crash.txt || true
+
+      - name: Publicar logcat
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logcat
+          path: |
+            logcat-completo.txt
+            logcat-crash.txt
+          if-no-files-found: warn
+          retention-days: 7
