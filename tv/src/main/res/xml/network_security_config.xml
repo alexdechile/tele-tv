@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ExoPlayer recibe el video desde el servidor HTTP local del motor de torrents
+  (http://127.0.0.1:PUERTO/stream). Desde Android 9 el tráfico en claro está
+  bloqueado por defecto, así que se habilita SOLO para loopback; el resto del
+  tráfico (addons de Stremio) sigue exigiendo HTTPS.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

@@ -73,7 +73,7 @@ private fun StreamSource.toPlaybackRequest(title: String?): PlaybackRequest? {
 
     return PlaybackRequest(
         magnetUri = magnet,
-        fileIndex = fileIndex ?: 0,
+        fileIndex = fileIndex,
         title = title
     )
 }

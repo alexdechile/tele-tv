@@ -2,44 +2,44 @@ package com.tele.app.tv.ui.player
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.tele.app.core.torrent.TorrentEngine
+import com.tele.app.core.torrent.TorrentStreamState
+import com.tele.app.tv.domain.usecase.StartTorrentStreamUseCase
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import com.tele.app.core.torrent.TorrentEngine
-import com.tele.app.tv.domain.usecase.StartTorrentStreamUseCase
 
-class TorrentStreamViewModel : ViewModel() {
+/** Orquesta el motor de torrents y expone su estado a la UI del reproductor. */
+class TorrentStreamViewModel(
+    private val engine: TorrentEngine
+) : ViewModel() {
 
-    private val engine = TorrentEngine(viewModelScope)
-    private val useCase = StartTorrentStreamUseCase(engine)
+    private val startTorrentStream = StartTorrentStreamUseCase(engine)
 
-    private val _streamUrl = MutableStateFlow<String?>(null)
-    private val _isLoading = MutableStateFlow(false)
-    private val _error = MutableStateFlow<String?>(null)
+    private val _state = MutableStateFlow<TorrentStreamState>(TorrentStreamState.Resolving)
+    val state: StateFlow<TorrentStreamState> = _state.asStateFlow()
 
-    val streamUrl: StateFlow<String?> = _streamUrl.asStateFlow()
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
-    val error: StateFlow<String?> = _error.asStateFlow()
+    private var job: Job? = null
 
-    fun start(magnetUri: String, fileIndex: Int) {
-        viewModelScope.launch {
-            _error.value = null
-            _isLoading.value = true
-            try {
-                useCase(magnetUri, fileIndex).collect { url ->
-                    _streamUrl.value = url
-                    _isLoading.value = false
-                }
-            } catch (e: Exception) {
-                _error.value = e.message
-                _isLoading.value = false
+    fun start(magnetUri: String, fileIndex: Int?) {
+        if (job?.isActive == true) return
+        job = viewModelScope.launch {
+            startTorrentStream(magnetUri, fileIndex).collect { streamState ->
+                _state.value = streamState
             }
         }
     }
 
     fun stop() {
-        _streamUrl.value = null
-        _error.value = null
+        job?.cancel()
+        job = null
+        engine.stop()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        stop()
     }
 }

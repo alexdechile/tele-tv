@@ -5,7 +5,7 @@ import com.tele.app.data.addon.model.MetaPreview
 /** Lo que el reproductor necesita para arrancar un torrent. */
 data class PlaybackRequest(
     val magnetUri: String,
-    val fileIndex: Int,
+    val fileIndex: Int?,
     val title: String?
 )
 

@@ -23,11 +23,14 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import androidx.tv.material3.Text
+import com.tele.app.core.torrent.TorrentEngine
+import com.tele.app.core.torrent.TorrentStreamState
 import com.tele.app.tv.ui.navigation.PlaybackRequest
+import java.util.Locale
 
 /**
  * Reproductor. ExoPlayer nunca habla con el torrent: recibe la URL HTTP local
- * que expone el motor (Milestone 2) y la reproduce como si fuera un video más.
+ * que expone el motor y la reproduce como si fuera un video más.
  *
  * La superficie de video usa [PlayerView] dentro de [AndroidView] porque
  * media3-ui-compose no existe; es el puente oficial recomendado.
@@ -35,10 +38,12 @@ import com.tele.app.tv.ui.navigation.PlaybackRequest
 @Composable
 fun PlayerScreen(
     request: PlaybackRequest?,
-    modifier: Modifier = Modifier,
-    viewModel: TorrentStreamViewModel = remember { TorrentStreamViewModel() }
+    modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val engine = remember(context) { TorrentEngine(context.applicationContext) }
+    val viewModel = remember(engine) { TorrentStreamViewModel(engine) }
+
     var playerError by remember { mutableStateOf<String?>(null) }
 
     val player = remember {
@@ -59,17 +64,16 @@ fun PlayerScreen(
         }
     }
 
-    val streamUrl by viewModel.streamUrl.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val error by viewModel.error.collectAsState()
+    val state by viewModel.state.collectAsState()
+    val readyInfo = (state as? TorrentStreamState.Ready)?.info
 
     LaunchedEffect(request?.magnetUri, request?.fileIndex) {
         val playback = request ?: return@LaunchedEffect
         viewModel.start(playback.magnetUri, playback.fileIndex)
     }
 
-    LaunchedEffect(streamUrl) {
-        val url = streamUrl ?: return@LaunchedEffect
+    LaunchedEffect(readyInfo?.url) {
+        val url = readyInfo?.url ?: return@LaunchedEffect
         playerError = null
         player.setMediaItem(MediaItem.fromUri(url))
         player.prepare()
@@ -87,18 +91,36 @@ fun PlayerScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        val status = playerError
-            ?: error
-            ?: if (isLoading) "Preparando stream…" else streamUrl?.let { "Fuente: $it" }
+        val status = playerError ?: statusText(state, readyInfo?.fileName)
 
-        status?.let { message ->
-            Text(
-                text = message,
-                color = Color.White,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(24.dp)
-            )
-        }
+        Text(
+            text = status,
+            color = Color.White,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(24.dp)
+        )
     }
+}
+
+private fun statusText(state: TorrentStreamState, fileName: String?): String = when (state) {
+    TorrentStreamState.Resolving -> "Obteniendo metadatos del torrent…"
+
+    is TorrentStreamState.Ready -> "Reproduciendo ${fileName ?: "video"}"
+
+    is TorrentStreamState.Progress -> buildString {
+        append("Descargando ${state.percent.toInt()}% · ${formatRate(state.downloadRate)}")
+        append(" · ${state.peers} peers")
+        if (state.state == "SEEDING" || state.state == "FINISHED") append(" · completo")
+    }
+
+    is TorrentStreamState.Error -> "Error: ${state.message}"
+}
+
+private fun formatRate(bytesPerSecond: Long): String = when {
+    bytesPerSecond <= 0 -> "0 KB/s"
+    bytesPerSecond >= 1024 * 1024 ->
+        String.format(Locale.US, "%.1f MB/s", bytesPerSecond / (1024.0 * 1024.0))
+
+    else -> String.format(Locale.US, "%d KB/s", bytesPerSecond / 1024)
 }

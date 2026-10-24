@@ -1,43 +1,222 @@
 package com.tele.app.core.torrent
 
-import kotlinx.coroutines.CoroutineScope
+import android.content.Context
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.isActive
+import org.libtorrent4j.AddTorrentParams
+import org.libtorrent4j.Priority
+import org.libtorrent4j.SessionManager
+import org.libtorrent4j.Sha1Hash
+import org.libtorrent4j.TorrentHandle
+import org.libtorrent4j.TorrentInfo
+import org.libtorrent4j.swig.torrent_flags_t
+import java.io.File
 
 /**
- * Motor de torrents basado en LibTorrent4j.
+ * Motor de torrents real (libtorrent4j).
  *
- * Esta es una implementación inicial (stub) que compila sin dependencias
- * nativas específicas por plataforma. La integración real con LibTorrent4j
- * requiere añadir artefactos como:
- *   org.libtorrent4j:libtorrent4j-android-arm64-v8a
- *   org.libtorrent4j:libtorrent4j-android-armeabi-v7a
- *   org.libtorrent4j:libtorrent4j-android-x86
- *   org.libtorrent4j:libtorrent4j-android-x86_64
+ * Flujo de trabajo:
+ *  1. Una única `SessionManager` (la sesión de libtorrent) para toda la app.
+ *  2. Se agrega el magnet y se esperan los metadatos (DHT/trackers).
+ *  3. Se elige el archivo de video y se dejan **todas** las demás piezas en
+ *     IGNORE, así el ancho de banda se concentra en la película.
+ *  4. Descarga secuencial sobre el rango de piezas de ese archivo.
+ *  5. Se levanta [HttpStreamServer] y se entrega su URL a ExoPlayer.
  *
- * Responsabilidades (pendiente de implementar):
- * 1. Mantener una Sesión de libtorrent activa.
- * 2. Añadir un torrent por magnet URI e iniciar descarga secuencial (streaming).
- * 3. Exponer un servidor HTTP local ligero que sirve el archivo de vídeo a ExoPlayer.
- *
- * ExoPlayer NO sabe que hay un torrent; solo recibe http://127.0.0.1:PORT/stream
+ * ExoPlayer nunca ve el torrent: recibe `http://127.0.0.1:PORT/stream`.
  */
-class TorrentEngine(private val coroutineScope: CoroutineScope) {
+class TorrentEngine(context: Context) {
 
-    /**
-     * Inicia un torrent y emite la URL HTTP local que ExoPlayer debe reproducir.
-     *
-     * @param magnetUri URI del torrent (magnet:?xt=...)
-     * @param fileIndex Índice del archivo de vídeo dentro del torrent
-     * @return Flow con la URL local (placeholder hasta integrar LibTorrent4j nativo)
-     */
-    fun startStream(magnetUri: String, fileIndex: Int): Flow<String> = flow {
-        emit("http://127.0.0.1:0/stream")
+    private val saveDir: File = File(context.applicationContext.cacheDir, "torrents")
+    private val lock = Any()
+
+    private var sessionManager: SessionManager? = null
+    private var activeServer: HttpStreamServer? = null
+    private var activeHandle: TorrentHandle? = null
+
+    init {
+        saveDir.mkdirs()
     }
 
+    /** Prepara el stream y emite su estado; termina cuando se cancela la corrutina. */
+    fun stream(magnetUri: String, preferredFileIndex: Int?): Flow<TorrentStreamState> = flow {
+        try {
+            runStream(magnetUri, preferredFileIndex)
+        } catch (cancellation: CancellationException) {
+            stop()
+            throw cancellation
+        } catch (error: Exception) {
+            stop()
+            emit(TorrentStreamState.Error(error.message ?: "Error inesperado del motor de torrents"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    private suspend fun kotlinx.coroutines.flow.FlowCollector<TorrentStreamState>.runStream(
+        magnetUri: String,
+        preferredFileIndex: Int?
+    ) {
+        emit(TorrentStreamState.Resolving)
+
+        val manager = ensureSession()
+        val infoHash = parseInfoHash(magnetUri)
+        if (infoHash == null) {
+            emit(TorrentStreamState.Error("Magnet inválido: no se pudo leer el info hash"))
+            return
+        }
+
+        stop()
+
+        manager.download(magnetUri, saveDir, torrent_flags_t())
+
+        val handle = awaitTorrent(manager, infoHash)
+        if (handle == null) {
+            emit(
+                TorrentStreamState.Error(
+                    "Sin metadatos del torrent. Revisa que tenga seeds o trackers activos."
+                )
+            )
+            return
+        }
+
+        val torrentInfo = handle.torrentFile()
+        if (torrentInfo == null) {
+            emit(TorrentStreamState.Error("El torrent no entregó metadatos utilizables"))
+            return
+        }
+
+        val files = torrentInfo.files()
+        val fileIndex = TorrentVideoFiles.pick(files, preferredFileIndex)
+        if (fileIndex == null) {
+            emit(TorrentStreamState.Error("El torrent no contiene archivos de video"))
+            return
+        }
+
+        prepareDownload(handle, torrentInfo, fileIndex)
+
+        val fileName = files.fileName(fileIndex)
+        val fileSize = files.fileSize(fileIndex)
+
+        val server = HttpStreamServer(
+            torrentInfo = torrentInfo,
+            handle = handle,
+            file = File(saveDir, files.filePath(fileIndex)),
+            fileOffsetInTorrent = files.fileOffset(fileIndex),
+            fileSize = fileSize,
+            contentType = TorrentVideoFiles.contentTypeOf(fileName)
+        )
+        server.start()
+
+        synchronized(lock) {
+            activeServer = server
+            activeHandle = handle
+        }
+
+        emit(
+            TorrentStreamState.Ready(
+                TorrentStreamInfo(
+                    url = server.url,
+                    fileName = fileName,
+                    fileSize = fileSize,
+                    torrentName = torrentInfo.name()
+                )
+            )
+        )
+
+        while (currentCoroutineContext().isActive) {
+            emitProgress(handle)?.let { emit(it) }
+            delay(PROGRESS_INTERVAL_MS)
+        }
+    }
+
+    /** Corta el torrent activo y cierra el servidor local. */
     fun stop() {
-        // TODO: cerrar servidor HTTP y pausar sesión cuando se implemente el ciclo de vida completo
+        synchronized(lock) {
+            activeServer?.stop()
+            activeServer = null
+
+            val handle = activeHandle
+            activeHandle = null
+            val manager = sessionManager
+            if (handle != null && manager != null) {
+                runCatching { manager.remove(handle) }
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Interno
+    // ---------------------------------------------------------------------
+
+    private fun ensureSession(): SessionManager = synchronized(lock) {
+        sessionManager ?: SessionManager().also { manager ->
+            manager.start()
+            sessionManager = manager
+        }
+    }
+
+    private fun parseInfoHash(magnetUri: String): Sha1Hash? = try {
+        AddTorrentParams.parseMagnetUri(magnetUri).infoHashes.best
+    } catch (error: Exception) {
+        null
+    }
+
+    /** Espera a que libtorrent tenga el `torrent_info` (metadatos listos). */
+    private suspend fun awaitTorrent(manager: SessionManager, infoHash: Sha1Hash): TorrentHandle? {
+        val deadline = System.currentTimeMillis() + METADATA_TIMEOUT_MS
+        while (System.currentTimeMillis() < deadline) {
+            val handle = try {
+                manager.find(infoHash)
+            } catch (error: Exception) {
+                null
+            }
+
+            if (handle != null) {
+                val ready = try {
+                    handle.isValid() && handle.torrentFile() != null
+                } catch (error: Exception) {
+                    false
+                }
+                if (ready) return handle
+            }
+            delay(POLL_INTERVAL_MS)
+        }
+        return null
+    }
+
+    /** Prioriza solo el archivo elegido y activa la descarga secuencial. */
+    private fun prepareDownload(handle: TorrentHandle, torrentInfo: TorrentInfo, fileIndex: Int) {
+        for (index in 0 until torrentInfo.numFiles()) {
+            val priority = if (index == fileIndex) Priority.TOP_PRIORITY else Priority.IGNORE
+            runCatching { handle.filePriority(index, priority) }
+        }
+
+        val files = torrentInfo.files()
+        val firstPiece = files.pieceIndexAtFile(fileIndex)
+        val lastPiece = files.lastPieceIndexAtFile(fileIndex)
+        runCatching { handle.setSequentialRange(firstPiece, lastPiece) }
+    }
+
+    private fun emitProgress(handle: TorrentHandle): TorrentStreamState.Progress? = try {
+        val status = handle.status()
+        TorrentStreamState.Progress(
+            percent = (status.progress() * 100f).coerceIn(0f, 100f),
+            downloadRate = status.downloadRate().toLong(),
+            peers = status.numPeers(),
+            state = status.state().name
+        )
+    } catch (error: Exception) {
+        null
+    }
+
+    private companion object {
+        const val METADATA_TIMEOUT_MS = 60_000L
+        const val POLL_INTERVAL_MS = 300L
+        const val PROGRESS_INTERVAL_MS = 1_000L
     }
 }

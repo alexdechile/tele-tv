@@ -27,6 +27,22 @@ jobs:
       - name: Assemble debug TV module
         run: ./gradlew :tv:assembleDebug --no-daemon
 
+      # Falla el build si el binario nativo de libtorrent no quedó empaquetado:
+      # compilaría igual, pero la app reventaría en la TV con UnsatisfiedLinkError.
+      - name: Verificar libtorrent4j.so en el APK
+        run: |
+          APK=$(ls tv/build/outputs/apk/debug/*.apk | head -1)
+          echo "APK: $APK"
+          unzip -l "$APK" | grep -E 'lib/' | head -20
+          for ABI in arm64-v8a x86_64; do
+            if unzip -l "$APK" | grep -q "lib/$ABI/libtorrent4j.so"; then
+              echo "OK: lib/$ABI/libtorrent4j.so"
+            else
+              echo "::error::Falta lib/$ABI/libtorrent4j.so en el APK"
+              exit 1
+            fi
+          done
+
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
