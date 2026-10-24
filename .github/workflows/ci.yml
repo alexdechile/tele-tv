@@ -32,10 +32,28 @@ jobs:
       # Guarda contra "los tests no corrieron" (Gradle puede saltearlos en silencio).
       - name: Verificar que los tests se ejecutaron
         run: |
-          set -e
-          FILES=$(find core/build/test-results -name 'TEST-*.xml' | wc -l)
-          echo "archivos de resultados: $FILES"
-          grep -h -o 'tests="[0-9]*" failures="[0-9]*" errors="[0-9]*"' core/build/test-results/testDebugUnitTest/*.xml
+          python3 - <<'PYEOF'
+          import glob
+          import sys
+          import xml.etree.ElementTree as ET
+
+          total = failures = errors = skipped = 0
+          files = glob.glob("core/build/test-results/**/TEST-*.xml", recursive=True)
+          for path in files:
+              root = ET.parse(path).getroot()
+              total += int(root.get("tests", 0))
+              failures += int(root.get("failures", 0))
+              errors += int(root.get("errors", 0))
+              skipped += int(root.get("skipped", 0))
+
+          print(f"archivos={len(files)} tests={total} failures={failures} errors={errors} skipped={skipped}")
+          if total == 0:
+              print("::error::No se ejecuto ningun test")
+              sys.exit(1)
+          if failures or errors:
+              print("::error::Hay tests fallidos")
+              sys.exit(1)
+          PYEOF
 
       - name: Verificar libtorrent4j.so en el APK
         run: |
