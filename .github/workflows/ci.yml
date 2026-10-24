@@ -25,7 +25,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Assemble debug TV module
-        run: ./gradlew :tv:assembleDebug --no-daemon
+        run: ./gradlew :tv:assembleDebug :core:test --no-daemon
 
       # Falla el build si el binario nativo de libtorrent no quedó empaquetado:
       # compilaría igual, pero la app reventaría en la TV con UnsatisfiedLinkError.

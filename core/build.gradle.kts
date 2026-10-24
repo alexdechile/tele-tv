@@ -28,4 +28,6 @@ dependencies {
     runtimeOnly(libs.libtorrent4jNativeArm64)
     runtimeOnly(libs.libtorrent4jNativeX64)
     implementation(libs.kotlinx.coroutines.android)
+
+    testImplementation(libs.junit)
 }

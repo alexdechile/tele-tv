@@ -1,8 +1,5 @@
 package com.tele.app.core.torrent
 
-import org.libtorrent4j.Priority
-import org.libtorrent4j.TorrentHandle
-import org.libtorrent4j.TorrentInfo
 import java.io.File
 import java.io.IOException
 import java.io.OutputStream
@@ -26,12 +23,14 @@ import java.util.concurrent.atomic.AtomicBoolean
  *  - respuestas `206 Partial Content` con `Content-Range`
  */
 class HttpStreamServer(
-    private val torrentInfo: TorrentInfo,
-    private val handle: TorrentHandle,
+    private val pieceLength: Long,
+    private val numPieces: Int,
     private val file: File,
     private val fileOffsetInTorrent: Long,
     private val fileSize: Long,
-    private val contentType: String
+    private val contentType: String,
+    private val pieces: PieceAvailability,
+    private val pieceTimeoutMs: Long = DEFAULT_PIECE_TIMEOUT_MS
 ) {
 
     private val serverSocket = ServerSocket(0, BACKLOG, InetAddress.getByName(LOOPBACK))
@@ -136,8 +135,7 @@ class HttpStreamServer(
     // ---------------------------------------------------------------------
 
     private fun streamRange(output: OutputStream, range: ByteRange) {
-        val pieceLength = torrentInfo.pieceLength().toLong().coerceAtLeast(1L)
-        val lastPiece = (torrentInfo.numPieces() - 1).coerceAtLeast(0)
+        val lastPiece = (numPieces - 1).coerceAtLeast(0)
 
         awaitFileOnDisk()
 
@@ -171,16 +169,16 @@ class HttpStreamServer(
 
     /** Espera a que libtorrent tenga la pieza, priorizando lo que ExoPlayer pide. */
     private fun awaitPiece(piece: Int, lastPiece: Int): Boolean {
-        val deadline = System.currentTimeMillis() + PIECE_TIMEOUT_MS
+        val deadline = System.currentTimeMillis() + pieceTimeoutMs
 
         while (System.currentTimeMillis() < deadline) {
             if (!running.get()) return false
-            if (handle.havePiece(piece)) return true
+            if (pieces.hasPiece(piece)) return true
             prioritizeAround(piece, lastPiece)
             Thread.sleep(POLL_INTERVAL_MS)
         }
 
-        return handle.havePiece(piece)
+        return pieces.hasPiece(piece)
     }
 
     /**
@@ -189,12 +187,10 @@ class HttpStreamServer(
      * la descarga secuencial desde el principio.
      */
     private fun prioritizeAround(piece: Int, lastPiece: Int) {
-        runCatching {
-            handle.piecePriority(piece, Priority.TOP_PRIORITY)
-            for (next in piece + 1..piece + PRIORITY_LOOKAHEAD) {
-                if (next > lastPiece) break
-                handle.piecePriority(next, Priority.SIX)
-            }
+        pieces.prioritize(piece)
+        for (next in piece + 1..piece + PRIORITY_LOOKAHEAD) {
+            if (next > lastPiece) break
+            pieces.prioritize(next)
         }
     }
 
@@ -249,7 +245,7 @@ class HttpStreamServer(
         const val BACKLOG = 16
         const val BUFFER_SIZE = 512 * 1024
         const val POLL_INTERVAL_MS = 100L
-        const val PIECE_TIMEOUT_MS = 90_000L
+        const val DEFAULT_PIECE_TIMEOUT_MS = 90_000L
         const val FILE_APPEAR_TIMEOUT_MS = 60_000L
         const val SOCKET_TIMEOUT_MS = 120_000
         const val PRIORITY_LOOKAHEAD = 8

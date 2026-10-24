@@ -103,12 +103,13 @@ class TorrentEngine(context: Context) {
         val fileSize = files.fileSize(fileIndex)
 
         val server = HttpStreamServer(
-            torrentInfo = torrentInfo,
-            handle = handle,
+            pieceLength = torrentInfo.pieceLength().toLong(),
+            numPieces = torrentInfo.numPieces(),
             file = File(saveDir, files.filePath(fileIndex)),
             fileOffsetInTorrent = files.fileOffset(fileIndex),
             fileSize = fileSize,
-            contentType = TorrentVideoFiles.contentTypeOf(fileName)
+            contentType = TorrentVideoFiles.contentTypeOf(fileName),
+            pieces = TorrentPieces(handle)
         )
         server.start()
 
