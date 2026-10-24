@@ -48,10 +48,23 @@ Verificado a mano contra un enjambre real (Big Buck Bunny, sin dispositivo):
 No verificado todavía: reproducción real en una TV/emulador, rendimiento del streaming
 con buffer corto, subtítulos y selección de audio.
 
-Aviso sobre audio: ExoPlayer reproduce AAC/MP3 nativamente, pero **AC3/E-AC3/DTS**
-dependen del decodificador del televisor. Si una película se ve sin sonido, casi
-siempre es eso (no el torrent) y la solución es elegir otra fuente o añadir una
-extensión de decodificador.
+### Audio en TV box (AC3/E-AC3/DTS)
+
+Hallazgo importante: el sink de Media3 por defecto (`DefaultAudioSink.Builder(context)`)
+arranca con `AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES`, que **solo anuncia PCM**.
+Con esa configuración ExoPlayer nunca ofrece passthrough y, en una fuente AC3 sin
+decoder de plataforma, el resultado es video con silencio.
+
+Por eso `:tv` construye el reproductor con `AudioAwareRenderersFactory`, que inyecta
+`AudioCapabilities.getCapabilities(context)`. Con eso ExoPlayer prefiere, en este orden:
+
+1. **Passthrough (bitstream)** si el televisor/receptor acepta AC3 por HDMI (`AudioCapabilities`).
+2. **Decodificador de plataforma** (`MediaCodecList`), típico en chips Amlogic con licencia.
+3. **Offload al DSP** (`AudioManager.isOffloadedPlaybackSupported`, API 29+).
+
+El overlay del reproductor muestra qué pista trae la fuente y por qué camino sale
+(`Audio: AC3 (passthrough HDMI)`), y avisa con `⚠ elige otra fuente` si el equipo no
+puede con ese audio. El detalle completo queda en logcat con la etiqueta `TeleTvAudio`.
 
 ### Deuda técnica conocida
 
