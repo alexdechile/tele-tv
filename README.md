@@ -48,6 +48,11 @@ Verificado a mano contra un enjambre real (Big Buck Bunny, sin dispositivo):
 No verificado todavía: reproducción real en una TV/emulador, rendimiento del streaming
 con buffer corto, subtítulos y selección de audio.
 
+Aviso sobre audio: ExoPlayer reproduce AAC/MP3 nativamente, pero **AC3/E-AC3/DTS**
+dependen del decodificador del televisor. Si una película se ve sin sonido, casi
+siempre es eso (no el torrent) y la solución es elegir otra fuente o añadir una
+extensión de decodificador.
+
 ### Deuda técnica conocida
 
 - La inyección de dependencias es un singleton (`AppGraph`), no Hilt: así se mantuvo el CI estable.
@@ -60,13 +65,18 @@ con buffer corto, subtítulos y selección de audio.
 - Un build de release necesita la regla ProGuard que pide libtorrent4j:
   `-keep class org.libtorrent4j.swig.libtorrent_jni {*;}`.
 
-## Compilar
+## Compilar y probar
 
-El build se valida en la nube (GitHub Actions): `./gradlew :tv:assembleDebug`.
+El build se valida en la nube (GitHub Actions): `./gradlew :tv:assembleDebug :core:test`.
+El CI publica el APK como artefacto `tele-tv-debug`.
 
 ```bash
 scripts/ci-watch.sh          # espera el CI del commit actual y muestra solo los errores
 ```
+
+Los tests de `:core` corren en la JVM: usan el binario nativo de **Linux** de
+libtorrent4j (Gradle lo extrae y fija `java.library.path`), así se ejercita la API
+real sin emulador.
 
 ## Pantallas
 
