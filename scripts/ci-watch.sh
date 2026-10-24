@@ -65,6 +65,8 @@ job_id=$(curl -s -H "Authorization: Bearer $TOKEN" "$API/actions/runs/$run_id/jo
   python3 -c 'import json,sys; print(json.load(sys.stdin)["jobs"][0]["id"])')
 curl -sL -H "Authorization: Bearer $TOKEN" "$API/actions/jobs/$job_id/logs" -o /tmp/ci-last.log
 echo "--- errores ---"
-grep -E "^.*e: |FAILURE: Build|error:" /tmp/ci-last.log | head -40
+grep -E "^.*e: file|error:|Unresolved|Script compilation" /tmp/ci-last.log | sed 's/^[0-9T:.Z-]* //' | head -30
+echo "--- que salio mal ---"
+sed -n '/What went wrong/,/^.*\* Try:/p' /tmp/ci-last.log | sed 's/^[0-9T:.Z-]* //' | head -30
 echo "(log completo: /tmp/ci-last.log)"
 exit 1
