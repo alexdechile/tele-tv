@@ -43,10 +43,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             var showCrash by remember { mutableStateOf(previousCrash != null) }
 
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.background
-            ) {
+            Surface(modifier = Modifier.fillMaxSize()) {
                 if (showCrash && previousCrash != null) {
                     CrashScreen(
                         trace = previousCrash,
