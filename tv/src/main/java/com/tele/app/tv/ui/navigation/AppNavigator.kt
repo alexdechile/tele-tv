@@ -60,9 +60,14 @@ fun AppNavigator() {
 }
 
 private fun StreamSource.toPlaybackRequest(title: String?): PlaybackRequest? {
+    // Copias locales: `infoHash`/`url` vienen de otro modulo, y Kotlin no puede
+    // hacer smart cast sobre properties publicas de un modulo distinto.
+    val hash = infoHash
+    val directUrl = url
+
     val magnet = when {
-        !infoHash.isNullOrBlank() -> TorrentLinks.magnet(infoHash, fileName ?: title)
-        !url.isNullOrBlank() -> url
+        !hash.isNullOrBlank() -> TorrentLinks.magnet(hash, fileName ?: title)
+        !directUrl.isNullOrBlank() -> directUrl
         else -> null
     } ?: return null
 
