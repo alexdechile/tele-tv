@@ -1,10 +1,10 @@
 # Tele TV - Bitácora de Proyecto
 
 ## Último Realizado
-- **Soporte de arquitectura 32-bit (`armeabi-v7a`) para Android TV Box KM6:**
-  - Se agregó `libtorrent4j-android-arm` a `gradle/libs.versions.toml` y `core/build.gradle.kts`.
-  - Se actualizó el CI (`.github/workflows/ci.yml`) para verificar la presencia de `lib/armeabi-v7a/libtorrent4j.so`.
-  - Compilación en GitHub Actions y despliegue por ADB hacia el TV Box KM6.
+- **Corrección de arranque y soporte nativo 32-bit (`armeabi-v7a`):**
+  - Se eliminó el plugin y anotación huérfana de Hilt (`@HiltAndroidApp`), que provocaba `ClassNotFoundException: Hilt_TeleTvApp` al iniciar (el proyecto utiliza `AppGraph` singleton).
+  - Se agregó `libtorrent4j-android-arm` a `gradle/libs.versions.toml` y `core/build.gradle.kts` para soporte completo de TV boxes Amlogic 32-bit.
+  - Se actualizó el CI (`.github/workflows/ci.yml`) y se desplegó en el KM6.
 
 ## ¿Qué hace esta App?
 Tele TV es una aplicación nativa para Android TV enfocada en la reproducción y streaming en tiempo real de video vía torrents:

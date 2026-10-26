@@ -1,6 +1,5 @@
 plugins {
     alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.hilt.android)
     alias(libs.plugins.compose.compiler)
     id("com.android.application") version "8.5.0"
 }
@@ -52,11 +51,8 @@ dependencies {
     implementation(libs.media3.ui)
     implementation(libs.media3.datasource)
 
-    implementation(libs.hilt.android)
-    implementation(libs.hilt.navigation.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
-    annotationProcessor(libs.hilt.compiler)
 
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
