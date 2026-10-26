@@ -26,8 +26,12 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Tracks
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioCapabilities
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import androidx.tv.material3.Card
 import androidx.tv.material3.MaterialTheme
@@ -84,8 +88,28 @@ fun PlayerScreen(
 
     val player = remember(audioCapabilities) {
         val renderersFactory = AudioAwareRenderersFactory(context, audioCapabilities)
+
+        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+            .setConnectTimeoutMs(30_000)
+            .setReadTimeoutMs(120_000)
+            .setAllowCrossProtocolRedirects(true)
+
+        val dataSourceFactory = DefaultDataSource.Factory(context, httpDataSourceFactory)
+        val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
+
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                15_000,
+                50_000,
+                3_000,
+                5_000
+            )
+            .build()
+
         ExoPlayer.Builder(context)
             .setRenderersFactory(renderersFactory)
+            .setMediaSourceFactory(mediaSourceFactory)
+            .setLoadControl(loadControl)
             .build()
             .apply {
                 addListener(object : Player.Listener {

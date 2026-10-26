@@ -100,6 +100,20 @@ class TorrentEngine(private val saveDir: File) {
         val fileName = files.fileName(fileIndex)
         val fileSize = files.fileSize(fileIndex)
 
+        val firstPiece = files.pieceIndexAtFile(fileIndex)
+        val lastPiece = files.lastPieceIndexAtFile(fileIndex)
+
+        // Priorizar primera y última pieza para lectura rápida de cabeceras (moov/EBML)
+        runCatching { handle.piecePriority(firstPiece, Priority.TOP_PRIORITY) }
+        runCatching { handle.piecePriority(lastPiece, Priority.TOP_PRIORITY) }
+
+        // Esperar a tener la primera pieza para que ExoPlayer lea la cabecera sin timeout
+        val pieceDeadline = System.currentTimeMillis() + FIRST_PIECE_TIMEOUT_MS
+        while (currentCoroutineContext().isActive && !handle.havePiece(firstPiece) && System.currentTimeMillis() < pieceDeadline) {
+            emitProgress(handle)?.let { emit(it) }
+            delay(PROGRESS_INTERVAL_MS)
+        }
+
         val server = HttpStreamServer(
             pieceLength = torrentInfo.pieceLength().toLong(),
             numPieces = torrentInfo.numPieces(),
@@ -215,6 +229,7 @@ class TorrentEngine(private val saveDir: File) {
 
     private companion object {
         const val METADATA_TIMEOUT_MS = 60_000L
+        const val FIRST_PIECE_TIMEOUT_MS = 60_000L
         const val POLL_INTERVAL_MS = 300L
         const val PROGRESS_INTERVAL_MS = 1_000L
     }
