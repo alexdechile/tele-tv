@@ -1,5 +1,7 @@
 package com.tele.app.tv.ui.player
 
+import android.view.LayoutInflater
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,9 +29,12 @@ import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioCapabilities
 import androidx.media3.ui.PlayerView
+import androidx.tv.material3.Card
+import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.tele.app.core.torrent.TorrentEngine
 import com.tele.app.core.torrent.TorrentStreamState
+import com.tele.app.tv.R
 import com.tele.app.tv.audio.AudioAwareRenderersFactory
 import com.tele.app.tv.audio.AudioSupportReport
 import com.tele.app.tv.audio.readAudioSupport
@@ -52,8 +57,11 @@ private const val AUDIO_LOG_TAG = "TeleTvAudio"
 @Composable
 fun PlayerScreen(
     request: PlaybackRequest?,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    BackHandler(onBack = onBack)
+
     val context = LocalContext.current
     val engine = remember(context) {
         TorrentEngine(File(context.cacheDir, "torrents"))
@@ -106,6 +114,7 @@ fun PlayerScreen(
 
     DisposableEffect(player) {
         onDispose {
+            player.stop()
             player.release()
             viewModel.stop()
         }
@@ -130,15 +139,32 @@ fun PlayerScreen(
     Box(modifier = modifier.fillMaxSize()) {
         AndroidView(
             factory = { ctx ->
-                PlayerView(ctx).apply {
-                    useController = true
-                    // En una tablet la pantalla se apaga sola; en la TV no molesta.
+                val view = LayoutInflater.from(ctx).inflate(R.layout.tele_player_view, null) as PlayerView
+                view.apply {
                     keepScreenOn = true
                     this.player = player
                 }
             },
             modifier = Modifier.fillMaxSize()
         )
+
+        Card(
+            onClick = onBack,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(24.dp)
+        ) {
+            Box(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "← Volver",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color.White
+                )
+            }
+        }
 
         Column(
             modifier = Modifier

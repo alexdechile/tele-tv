@@ -1,10 +1,12 @@
 # Tele TV - Bitácora de Proyecto
 
 ## Último Realizado
-- **Corrección de arranque y soporte nativo 32-bit (`armeabi-v7a`):**
-  - Se eliminó el plugin y anotación huérfana de Hilt (`@HiltAndroidApp`), que provocaba `ClassNotFoundException: Hilt_TeleTvApp` al iniciar (el proyecto utiliza `AppGraph` singleton).
-  - Se agregó `libtorrent4j-android-arm` a `gradle/libs.versions.toml` y `core/build.gradle.kts` para soporte completo de TV boxes Amlogic 32-bit.
-  - Se actualizó el CI (`.github/workflows/ci.yml`) y se desplegó en el KM6.
+- **Corrección de pantalla negra en video y control del reproductor:**
+  - Se configuró `PlayerView` para usar `TextureView` (`app:surface_type="texture_view"`), solucionando el problema donde Compose `Surface` bloqueaba u ocluía la capa de hardware de `SurfaceView`.
+  - Se reemplazó el `Surface` raíz en `MainActivity` por un `Box` para evitar el buffer offscreen que provocaba pantalla negra con audio.
+  - Se añadió botón visible "← Volver" y soporte de `BackHandler` en `PlayerScreen`, permitiendo volver atrás con mouse y control remoto, y deteniendo la reproducción limpia al salir.
+  - Se eliminó el plugin y anotación huérfana de Hilt (`@HiltAndroidApp`), que provocaba `ClassNotFoundException: Hilt_TeleTvApp` al iniciar.
+  - Se agregó `libtorrent4j-android-arm` a `gradle/libs.versions.toml` y `core/build.gradle.kts` para soporte de TV boxes 32-bit (`armeabi-v7a`).
 
 ## ¿Qué hace esta App?
 Tele TV es una aplicación nativa para Android TV enfocada en la reproducción y streaming en tiempo real de video vía torrents:

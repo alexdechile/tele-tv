@@ -54,7 +54,10 @@ fun AppNavigator() {
         }
 
         composable(ROUTE_PLAYER) {
-            PlayerScreen(request = NavPayload.playback)
+            PlayerScreen(
+                request = NavPayload.playback,
+                onBack = { navController.popBackStack() }
+            )
         }
     }
 }
