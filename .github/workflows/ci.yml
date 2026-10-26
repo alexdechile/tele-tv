@@ -60,7 +60,7 @@ jobs:
           APK=$(ls tv/build/outputs/apk/debug/*.apk | head -1)
           echo "APK: $APK"
           unzip -l "$APK" | grep -E 'lib/' | head -20
-          for ABI in arm64-v8a x86_64; do
+          for ABI in arm64-v8a armeabi-v7a x86_64; do
             if unzip -l "$APK" | grep -q "lib/$ABI/libtorrent4j.so"; then
               echo "OK: lib/$ABI/libtorrent4j.so"
             else

@@ -74,8 +74,7 @@ puede con ese audio. El detalle completo queda en logcat con la etiqueta `TeleTv
 - `AppDatabase` (Room) está declarada pero sin entidades ni uso real (M5).
 - No hay búsqueda ni catálogo completo de Cinemeta: el home muestra las primeras filas de cada addon.
 - Los addons por defecto viven en `DefaultAddons.URLS` (Torrentio puede cambiar de dominio).
-- Solo se incluyen los ABIs `arm64-v8a` y `x86_64` (TV reales y emulador). Añadir
-  `armeabi-v7a`/`x86` sumaría ~15 MB por ABI.
+- Se incluyen los ABIs `arm64-v8a`, `armeabi-v7a` (TV boxes Amlogic/32-bit) y `x86_64` (emulador).
 - Un build de release necesita la regla ProGuard que pide libtorrent4j:
   `-keep class org.libtorrent4j.swig.libtorrent_jni {*;}`.
 

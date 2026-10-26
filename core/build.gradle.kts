@@ -24,7 +24,8 @@ android {
 dependencies {
     // api: el motor expone tipos de libtorrent4j a :tv a traves del flujo de estado
     api(libs.libtorrent4j)
-    // Binarios nativos: TV reales (arm64-v8a) y emulador (x86_64)
+    // Binarios nativos: TV reales (arm64-v8a, armeabi-v7a para TV boxes de 32-bit) y emulador (x86_64)
+    runtimeOnly(libs.libtorrent4jNativeArm)
     runtimeOnly(libs.libtorrent4jNativeArm64)
     runtimeOnly(libs.libtorrent4jNativeX64)
     implementation(libs.kotlinx.coroutines.android)
