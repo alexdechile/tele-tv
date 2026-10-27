@@ -14,7 +14,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -306,11 +305,12 @@ fun PlayerScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) {
-                controlsOpen = !controlsOpen
+            // Ojo: acá NO va `clickable`. Un `clickable` es enfocable, y ese
+            // foco fantasma se robaba la navegación del control remoto: el dpad
+            // no llegaba a los botones y OK cerraba la barra. Con puntero puro
+            // el fondo alterna controles y el foco se queda donde corresponde.
+            .pointerInput(Unit) {
+                detectTapGestures { controlsOpen = !controlsOpen }
             }
     ) {
         AndroidView(

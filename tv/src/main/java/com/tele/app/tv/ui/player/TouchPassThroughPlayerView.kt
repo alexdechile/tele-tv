@@ -6,17 +6,17 @@ import android.view.MotionEvent
 import androidx.media3.ui.PlayerView
 
 /**
- * [PlayerView] que NO se queda con los eventos de toque.
+ * [PlayerView] que no compite por el toque ni por el foco.
  *
- * media3 marca este View como `clickable` en su propio constructor (para
- * mostrar/ocultar su controlador nativo). Como es un View real dentro de un
- * `AndroidView`, se queda con el `ACTION_DOWN` antes de que Compose haga su
- * hit-test: la barra de controles de Compose se dibujaba encima, pero nunca
- * recibía un solo toque. Ese era el bug de "los botones no funcionan".
+ * media3 deja este View `clickable` cuando hay controlador activo o un
+ * `OnClickListener` puesto a mano; un View real dentro de un `AndroidView`
+ * despacha el toque antes de que Compose haga su hit-test, así que en ese
+ * estado se comería los clics de la barra de controles.
  *
- * Desactivar el controlador con `app:use_controller="false"` apaga el overlay
- * visual de media3, pero no desactiva el `clickable`, así que seguía tragándose
- * los eventos. Aquí se suelta el evento devolviendo `false`.
+ * Con `app:use_controller="false"` media3 1.3.1 ya no lo marca clickable, pero
+ * dependíamos de ese detalle fino de la librería: si mañana alguien reactiva el
+ * controlador nativo, los botones de Compose vuelven a morir en silencio. Acá
+ * queda explícito y a prueba de regresiones.
  */
 class TouchPassThroughPlayerView @JvmOverloads constructor(
     context: Context,
@@ -25,8 +25,7 @@ class TouchPassThroughPlayerView @JvmOverloads constructor(
 ) : PlayerView(context, attrs, defStyleAttr) {
 
     init {
-        // El foco de la barra lo maneja Compose; este View no debe competir por él
-        // ni responder a clics propios.
+        // El foco y los clics los maneja la barra de Compose.
         isFocusable = false
         isFocusableInTouchMode = false
         isClickable = false
