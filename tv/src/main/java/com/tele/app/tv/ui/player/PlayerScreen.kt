@@ -233,7 +233,9 @@ fun PlayerScreen(
     }
 
     val state by viewModel.state.collectAsState()
-    val readyInfo = (state as? TorrentStreamState.Ready)?.info
+    // La URL vive aparte del estado de progreso: si se leyera de `state`, el
+    // primer `Progress` la pisaría y ExoPlayer nunca llegaría a preparar el video.
+    val readyInfo by viewModel.ready.collectAsState()
 
     LaunchedEffect(request?.magnetUri, request?.fileIndex) {
         val playback = request ?: return@LaunchedEffect
@@ -295,12 +297,12 @@ fun PlayerScreen(
         }
     }
 
-    val statusLine = playerError
-        ?: if (isBuffering && state is TorrentStreamState.Ready) {
-            "Cargando el video…"
-        } else {
-            statusText(state, readyInfo?.fileName)
-        }
+    val statusLine = playerError ?: when {
+        readyInfo == null -> statusText(state, null)
+        isBuffering -> "Cargando el video…" + progressSuffix(state)
+        isPlaying -> "Reproduciendo ${readyInfo?.fileName ?: "video"}" + progressSuffix(state)
+        else -> "En pausa · ${readyInfo?.fileName ?: "video"}" + progressSuffix(state)
+    }
 
     Box(
         modifier = modifier
@@ -718,6 +720,14 @@ private fun statusText(state: TorrentStreamState, fileName: String?): String = w
     }
 
     is TorrentStreamState.Error -> "Error: ${state.message}"
+}
+
+/** Cola de progreso del torrent para acompañar el estado de reproducción. */
+private fun progressSuffix(state: TorrentStreamState): String = when (state) {
+    is TorrentStreamState.Progress ->
+        " · ${state.percent.toInt()}% · ${formatRate(state.downloadRate)} · ${state.peers} peers"
+
+    else -> ""
 }
 
 /**
