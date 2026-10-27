@@ -3,10 +3,17 @@ package com.tele.app.tv.ui.player
 import android.view.LayoutInflater
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,7 +22,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -26,8 +35,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.C
@@ -43,7 +68,6 @@ import androidx.media3.exoplayer.audio.AudioCapabilities
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
-import androidx.tv.material3.Card
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.tele.app.core.torrent.TorrentEngine
@@ -59,18 +83,42 @@ import java.util.Locale
 
 private const val AUDIO_LOG_TAG = "TeleTvAudio"
 
+/** Cuánto salta el seek al apretar izquierda/derecha en el control remoto. */
+private const val SEEK_STEP_MS = 10_000L
+
+// Paleta de la barra: píldoras claras, texto oscuro, foco ámbar.
+// El video queda detrás del degradado, así que el contraste se mantiene sin
+// importar qué escena esté en pantalla.
+private val PillIdle = Color(0xF2FFFFFF)
+private val PillPrimary = Color(0xFFFFFFFF)
+private val PillIdleText = Color(0xFF141414)
+private val PillFocus = Color(0xFFFFC24B)
+private val PillFocusText = Color(0xFF1C1300)
+private val PillFocusRing = Color(0xFFFFE1A3)
+private val SeekAccent = Color(0xFFFFC24B)
+private val StatusText = Color(0xFFEDEDED)
+private val StatusError = Color(0xFFFF8A80)
+private val StatusSecondary = Color(0xFF9E9E9E)
+
 enum class SubtitleChoice(val label: String, val langCode: String?) {
     SPANISH("Español", "spa"),
     ENGLISH("Inglés", "eng"),
     OFF("Desactivados", null)
 }
 
+private fun SubtitleChoice.next(): SubtitleChoice = when (this) {
+    SubtitleChoice.SPANISH -> SubtitleChoice.ENGLISH
+    SubtitleChoice.ENGLISH -> SubtitleChoice.OFF
+    SubtitleChoice.OFF -> SubtitleChoice.SPANISH
+}
+
 /**
  * Reproductor. ExoPlayer nunca habla con el torrent: recibe la URL HTTP local
  * que expone el motor y la reproduce como si fuera un video más.
  *
- * La superficie de video usa [PlayerView] dentro de [AndroidView] porque
- * media3-ui-compose no existe; es el puente oficial recomendado.
+ * La superficie de video usa [TouchPassThroughPlayerView] dentro de [AndroidView]
+ * (media3-ui-compose no existe). Es crítico que esa vista **no** se quede con
+ * los toques, o la barra de controles de Compose se dibuja pero no recibe nada.
  *
  * El audio se configura con las capacidades reales del equipo, para que un TV
  * box con AC3/DTS por HDMI use bitstream en vez de quedarse en silencio.
@@ -105,7 +153,17 @@ fun PlayerScreen(
     var isFullScreenZoom by remember { mutableStateOf(false) }
     var controlsOpen by remember { mutableStateOf(true) }
     var isPlaying by remember { mutableStateOf(false) }
+    var isBuffering by remember { mutableStateOf(false) }
     var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
+
+    // Estado del seek. ExoPlayer no expone la posición como estado de Compose,
+    // así que la refrescamos con un reloj propio.
+    var positionMs by remember { mutableStateOf(0L) }
+    var durationMs by remember { mutableStateOf(0L) }
+    var bufferedMs by remember { mutableStateOf(0L) }
+
+    val playFocus = remember { FocusRequester() }
+    val closedFocus = remember { FocusRequester() }
 
     LaunchedEffect(audioReport) { audioReport.log(AUDIO_LOG_TAG) }
 
@@ -143,6 +201,10 @@ fun PlayerScreen(
 
                     override fun onIsPlayingChanged(playing: Boolean) {
                         isPlaying = playing
+                    }
+
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        isBuffering = playbackState == Player.STATE_BUFFERING
                     }
 
                     override fun onTracksChanged(tracks: Tracks) {
@@ -187,6 +249,16 @@ fun PlayerScreen(
         player.play()
     }
 
+    // Reloj del seek: 4 lecturas por segundo no se nota y no cuesta nada.
+    LaunchedEffect(player) {
+        while (true) {
+            durationMs = player.duration.coerceAtLeast(0L)
+            positionMs = player.currentPosition.coerceAtLeast(0L)
+            bufferedMs = player.bufferedPosition.coerceAtLeast(0L)
+            delay(250)
+        }
+    }
+
     // Configurar idioma o desactivar subtítulos
     LaunchedEffect(subtitleChoice, player) {
         val p = player
@@ -214,6 +286,23 @@ fun PlayerScreen(
         }
     }
 
+    val seekTo: (Long) -> Unit = { target ->
+        val total = durationMs
+        if (total > 0L) {
+            val clamped = target.coerceIn(0L, total)
+            player.seekTo(clamped)
+            // Refleja el salto al instante, sin esperar al siguiente tick.
+            positionMs = clamped
+        }
+    }
+
+    val statusLine = playerError
+        ?: if (isBuffering && state is TorrentStreamState.Ready) {
+            "Cargando el video…"
+        } else {
+            statusText(state, readyInfo?.fileName)
+        }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -226,7 +315,8 @@ fun PlayerScreen(
     ) {
         AndroidView(
             factory = { ctx ->
-                val view = LayoutInflater.from(ctx).inflate(R.layout.tele_player_view, null) as PlayerView
+                val view = LayoutInflater.from(ctx)
+                    .inflate(R.layout.tele_player_view, null) as TouchPassThroughPlayerView
                 view.apply {
                     keepScreenOn = true
                     this.player = player
@@ -236,109 +326,383 @@ fun PlayerScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Botón discreto para abrir controles si están cerrados
+        // Botón discreto para recuperar los controles cuando están ocultos.
         if (!controlsOpen) {
-            Card(
+            ControlPill(
+                text = "▲ Controles",
                 onClick = { controlsOpen = true },
+                focusRequester = closedFocus,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(24.dp)
-            ) {
-                Box(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "☰ Controles",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = Color.White
-                    )
-                }
-            }
+                    .padding(28.dp)
+            )
         }
 
-        // Barra inferior fija (Footer) con todos los controles
         AnimatedVisibility(
             visible = controlsOpen,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter)
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xDD111111))
-                    .padding(horizontal = 24.dp, vertical = 14.dp)
+            ControlBar(
+                playFocusRequester = playFocus,
+                onBack = onBack,
+                isPlaying = isPlaying,
+                onTogglePlay = { if (player.isPlaying) player.pause() else player.play() },
+                isZoom = isFullScreenZoom,
+                onToggleZoom = { isFullScreenZoom = !isFullScreenZoom },
+                subtitle = subtitleChoice,
+                onCycleSubtitle = { subtitleChoice = subtitleChoice.next() },
+                onHide = { controlsOpen = false },
+                statusLine = statusLine,
+                statusIsError = playerError != null,
+                audioLine = audioText(audioMimeType, audioTrackSupported, audioReport),
+                positionMs = positionMs,
+                durationMs = durationMs,
+                bufferedMs = bufferedMs,
+                onSeek = seekTo
+            )
+        }
+    }
+}
+
+/**
+ * Barra inferior: estado arriba, seek al medio, botones abajo.
+ *
+ * El fondo es un degradado (transparente → negro), no una banda de color plano:
+ * así el video sigue viéndose detrás y el texto nunca pierde contraste.
+ */
+@Composable
+private fun ControlBar(
+    playFocusRequester: FocusRequester,
+    onBack: () -> Unit,
+    isPlaying: Boolean,
+    onTogglePlay: () -> Unit,
+    isZoom: Boolean,
+    onToggleZoom: () -> Unit,
+    subtitle: SubtitleChoice,
+    onCycleSubtitle: () -> Unit,
+    onHide: () -> Unit,
+    statusLine: String,
+    statusIsError: Boolean,
+    audioLine: String,
+    positionMs: Long,
+    durationMs: Long,
+    bufferedMs: Long,
+    onSeek: (Long) -> Unit
+) {
+    // Con control remoto tiene que haber algo enfocado desde el primer frame,
+    // si no la tecla OK no hace nada. El nodo puede no estar adjunto todavía,
+    // por eso reintentamos un par de frames.
+    LaunchedEffect(Unit) {
+        repeat(3) {
+            if (runCatching { playFocusRequester.requestFocus() }.isSuccess) {
+                return@LaunchedEffect
+            }
+            delay(50)
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(Color(0x00000000), Color(0xB3060606), Color(0xF5060606))
+                )
+            )
+            // Come el toque sobre el fondo del footer: apuntar a un botón y
+            // errarle por 10px no debería cerrar toda la barra.
+            .pointerInput(Unit) { detectTapGestures { } }
+            .padding(horizontal = 28.dp, vertical = 20.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Card(onClick = onBack) {
-                            Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-                                Text("← Volver", style = MaterialTheme.typography.labelLarge, color = Color.White)
-                            }
-                        }
+                Text(
+                    text = statusLine,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (statusIsError) StatusError else StatusText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = audioLine,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = StatusSecondary,
+                    maxLines = 1
+                )
+            }
 
-                        Card(onClick = {
-                            if (player.isPlaying) player.pause() else player.play()
-                        }) {
-                            Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-                                Text(if (isPlaying) "⏸ Pausa" else "▶ Play", style = MaterialTheme.typography.labelLarge, color = Color.White)
-                            }
-                        }
+            SeekRow(
+                positionMs = positionMs,
+                durationMs = durationMs,
+                bufferedMs = bufferedMs,
+                onSeek = onSeek,
+                onCenterKey = onTogglePlay
+            )
 
-                        Card(onClick = { isFullScreenZoom = !isFullScreenZoom }) {
-                            Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-                                Text(if (isFullScreenZoom) "⛶ Pantalla: Llenar" else "⛶ Pantalla: Ajustar", style = MaterialTheme.typography.labelLarge, color = Color.White)
-                            }
-                        }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ControlPill(text = "← Volver", onClick = onBack)
 
-                        Card(onClick = {
-                            subtitleChoice = when (subtitleChoice) {
-                                SubtitleChoice.SPANISH -> SubtitleChoice.ENGLISH
-                                SubtitleChoice.ENGLISH -> SubtitleChoice.OFF
-                                SubtitleChoice.OFF -> SubtitleChoice.SPANISH
-                            }
-                        }) {
-                            Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-                                Text("💬 Subtítulos: ${subtitleChoice.label}", style = MaterialTheme.typography.labelLarge, color = Color.White)
-                            }
-                        }
+                ControlPill(
+                    text = if (isPlaying) "Pausa" else "▶ Reproducir",
+                    onClick = onTogglePlay,
+                    primary = true,
+                    focusRequester = playFocusRequester
+                )
 
-                        Spacer(modifier = Modifier.weight(1f))
+                ControlPill(
+                    text = if (isZoom) "Pantalla: Llenar" else "Pantalla: Ajustar",
+                    onClick = onToggleZoom
+                )
 
-                        Card(onClick = { controlsOpen = false }) {
-                            Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-                                Text("✕ Cerrar", style = MaterialTheme.typography.labelLarge, color = Color.White)
-                            }
-                        }
+                ControlPill(
+                    text = "Subtítulos: ${subtitle.label}",
+                    onClick = onCycleSubtitle
+                )
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                ControlPill(text = "× Ocultar", onClick = onHide)
+            }
+        }
+    }
+}
+
+/**
+ * Barra de progreso navegable.
+ *
+ * - Mouse: clic en cualquier punto salta ahí; arrastrar hace scrubbing y recién
+ *   busca al soltar (buscar en cada píxel sobre un torrent es una masacre).
+ * - Control remoto: izquierda/derecha ±10s, OK pausa/reproduce.
+ *
+ * El gris tenue detrás es el buffer ya descargado por ExoPlayer.
+ */
+@Composable
+private fun SeekRow(
+    positionMs: Long,
+    durationMs: Long,
+    bufferedMs: Long,
+    onSeek: (Long) -> Unit,
+    onCenterKey: () -> Unit
+) {
+    val enabled = durationMs > 0L
+    var isFocused by remember { mutableStateOf(false) }
+    var dragging by remember { mutableStateOf(false) }
+    var dragFraction by remember { mutableStateOf(0f) }
+
+    val trackHeight by animateDpAsState(
+        targetValue = if (isFocused) 14.dp else 6.dp,
+        label = "seekTrackHeight"
+    )
+
+    val progressFraction = if (enabled) {
+        (positionMs.toFloat() / durationMs).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    val bufferedFraction = if (enabled) {
+        (bufferedMs.toFloat() / durationMs).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+
+    val shownFraction = if (dragging) dragFraction else progressFraction
+    val shownPosition = if (dragging) (dragFraction * durationMs).toLong() else positionMs
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = formatTime(shownPosition),
+            style = MaterialTheme.typography.labelMedium,
+            color = StatusText,
+            maxLines = 1
+        )
+
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(38.dp)
+                .onFocusChanged { isFocused = it.isFocused }
+                .focusable(enabled = enabled)
+                .onKeyEvent { event ->
+                    if (!enabled || event.type != KeyEventType.KeyDown) {
+                        return@onKeyEvent false
                     }
+                    when (event.key) {
+                        Key.DirectionLeft -> {
+                            onSeek(positionMs - SEEK_STEP_MS)
+                            true
+                        }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = playerError ?: statusText(state, readyInfo?.fileName),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFFDDDDDD)
-                        )
-                        Text(
-                            text = audioText(audioMimeType, audioTrackSupported, audioReport),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFFAAAAAA)
-                        )
+                        Key.DirectionRight -> {
+                            onSeek(positionMs + SEEK_STEP_MS)
+                            true
+                        }
+
+                        Key.DirectionCenter, Key.Enter -> {
+                            onCenterKey()
+                            true
+                        }
+
+                        else -> false
                     }
+                }
+                .pointerInput(enabled, durationMs) {
+                    if (!enabled) return@pointerInput
+                    detectTapGestures { offset ->
+                        val fraction = (offset.x / size.width).coerceIn(0f, 1f)
+                        onSeek((fraction * durationMs).toLong())
+                    }
+                }
+                .pointerInput(enabled, durationMs) {
+                    if (!enabled) return@pointerInput
+                    detectDragGestures(
+                        onDragStart = { offset ->
+                            dragging = true
+                            dragFraction = (offset.x / size.width).coerceIn(0f, 1f)
+                        },
+                        onDragEnd = {
+                            dragging = false
+                            onSeek((dragFraction * durationMs).toLong())
+                        },
+                        onDragCancel = { dragging = false },
+                        onDrag = { change, _ ->
+                            change.consume()
+                            dragFraction = (change.position.x / size.width).coerceIn(0f, 1f)
+                        }
+                    )
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(modifier = Modifier.fillMaxWidth().height(30.dp)) {
+                val barHeight = trackHeight.toPx()
+                val centerY = size.height / 2f
+                val top = centerY - barHeight / 2f
+                val corner = CornerRadius(barHeight / 2f, barHeight / 2f)
+
+                drawRoundRect(
+                    color = if (enabled) Color(0x4DFFFFFF) else Color(0x26FFFFFF),
+                    topLeft = Offset(0f, top),
+                    size = Size(size.width, barHeight),
+                    cornerRadius = corner
+                )
+
+                if (bufferedFraction > 0f) {
+                    drawRoundRect(
+                        color = Color(0x80FFFFFF),
+                        topLeft = Offset(0f, top),
+                        size = Size(size.width * bufferedFraction, barHeight),
+                        cornerRadius = corner
+                    )
+                }
+
+                if (shownFraction > 0f) {
+                    drawRoundRect(
+                        color = if (isFocused) SeekAccent else Color(0xFFFFFFFF),
+                        topLeft = Offset(0f, top),
+                        size = Size(size.width * shownFraction, barHeight),
+                        cornerRadius = corner
+                    )
+                }
+
+                if (enabled && (isFocused || dragging)) {
+                    val center = Offset(size.width * shownFraction, centerY)
+                    drawCircle(color = SeekAccent, radius = 11.dp.toPx(), center = center)
+                    drawCircle(
+                        color = Color(0xFF1C1300),
+                        radius = 4.dp.toPx(),
+                        center = center
+                    )
                 }
             }
         }
+
+        Text(
+            text = if (enabled) formatTime(durationMs) else "--:--",
+            style = MaterialTheme.typography.labelMedium,
+            color = StatusSecondary,
+            maxLines = 1
+        )
+    }
+}
+
+/**
+ * Píldora de acción. Clara por defecto (fondo blanco, texto casi negro) para
+ * que tenga contraste real sobre cualquier video; al enfocarse pasa a ámbar con
+ * un anillo claro, que es la señal de foco de 10-foot UI.
+ */
+@Composable
+private fun ControlPill(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    primary: Boolean = false,
+    focusRequester: FocusRequester? = null
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isFocused) 1.05f else 1f,
+        label = "pillScale"
+    )
+
+    val shape = RoundedCornerShape(percent = 50)
+    val containerColor = when {
+        isFocused -> PillFocus
+        primary -> PillPrimary
+        else -> PillIdle
+    }
+    val contentColor = if (isFocused) PillFocusText else PillIdleText
+
+    val focusModifier = if (focusRequester != null) {
+        Modifier.focusRequester(focusRequester)
+    } else {
+        Modifier
+    }
+
+    Box(
+        modifier = modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .shadow(elevation = 8.dp, shape = shape)
+            .background(color = containerColor, shape = shape)
+            .border(
+                width = if (isFocused) 3.dp else 1.dp,
+                color = if (isFocused) PillFocusRing else Color(0x14000000),
+                shape = shape
+            )
+            .then(focusModifier)
+            .onFocusChanged { isFocused = it.isFocused }
+            .clickable(onClick = onClick)
+            .padding(
+                horizontal = if (primary) 26.dp else 18.dp,
+                vertical = 13.dp
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelLarge,
+            color = contentColor,
+            maxLines = 1
+        )
     }
 }
 
@@ -384,6 +748,19 @@ private fun audioText(
     }
 
     return "Audio: $label ($route)$warning"
+}
+
+private fun formatTime(millis: Long): String {
+    if (millis <= 0L) return "0:00"
+    val totalSeconds = millis / 1000
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+    return if (hours > 0) {
+        String.format(Locale.US, "%d:%02d:%02d", hours, minutes, seconds)
+    } else {
+        String.format(Locale.US, "%d:%02d", minutes, seconds)
+    }
 }
 
 private fun formatRate(bytesPerSecond: Long): String = when {

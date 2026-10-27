@@ -1,9 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.media3.ui.PlayerView
+<!--
+  PlayerView propio (TouchPassThroughPlayerView): media3 deja el View clickable
+  y se come los toques antes de que Compose haga su hit-test, dejando muerta la
+  barra de controles. Nuestra subclase suelta el evento.
+-->
+<com.tele.app.tv.ui.player.TouchPassThroughPlayerView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/player_view"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:clickable="false"
+    android:focusable="false"
     app:surface_type="texture_view"
     app:use_controller="false" />
