@@ -14,14 +14,28 @@
 - **Modo de pantalla completa y selector de subtítulos (Español/Inglés):**
   - Se agregó selector interactivo de subtítulos en pantalla (`SubtitleChoice`: Español, Inglés, Desactivados) configurando `setPreferredTextLanguage` y `setTrackTypeDisabled` en ExoPlayer.
   - Se agregó botón de alternancia de pantalla completa (`RESIZE_MODE_ZOOM` para llenar 16:9 vs `RESIZE_MODE_FIT` para respetar relación original).
-  - Se implementó auto-ocultamiento de controles e información tras 5 segundos de inactividad, permitiendo visualización 100% limpia a pantalla completa, reapareciendo al hacer clic o mover el mouse.
-  - Se configuraron timeouts de ExoPlayer a 120s y precarga de la primera pieza en `TorrentEngine`.
-  - Se integró `TextureView` y soporte de arquitectura 32-bit (`armeabi-v7a`).
-  - Se configuró `PlayerView` para usar `TextureView` (`app:surface_type="texture_view"`), solucionando el problema donde Compose `Surface` bloqueaba u ocluía la capa de hardware de `SurfaceView`.
-  - Se reemplazó el `Surface` raíz en `MainActivity` por un `Box` para evitar el buffer offscreen que provocaba pantalla negra con audio.
-  - Se añadió botón visible "← Volver" y soporte de `BackHandler` en `PlayerScreen`, permitiendo volver atrás con mouse y control remoto, y deteniendo la reproducción limpia al salir.
-  - Se eliminó el plugin y anotación huérfana de Hilt (`@HiltAndroidApp`), que provocaba `ClassNotFoundException: Hilt_TeleTvApp` al iniciar.
-  - Se agregó `libtorrent4j-android-arm` a `gradle/libs.versions.toml` y `core/build.gradle.kts` para soporte de TV boxes 32-bit (`armeabi-v7a`).
+- **Resolución de pantalla negra (Video Surface) y Decoder AAC / Network Timeout:**
+  - Se sustituyó `SurfaceView` por `TextureView` en `tele_player_view.xml` y se cambió el `Surface` raíz en `MainActivity` por `Box`, solucionando la oclusión que producía audio sin imagen.
+  - Se aumentaron los timeouts de `DefaultHttpDataSource` de 8s a 120s en `PlayerScreen.kt`.
+  - Se ajustó `TorrentEngine.kt` para priorizar `firstPiece` y `lastPiece` y esperar la primera pieza antes de emitir estado `Ready`.
+- **Compatibilidad con arquitectura 32-bit (MECOOL KM6):**
+  - Se agregó `libtorrent4j-android-arm:2.1.0-39` a `gradle/libs.versions.toml` y `core/build.gradle.kts` para soportar `armeabi-v7a`.
+  - Se removió `@HiltAndroidApp` huérfano que generaba crash en arranque (`ClassNotFoundException: Hilt_TeleTvApp`).
+
+## Dónde íbamos / Próximos Pasos al Volver
+1. **Validación de la interfaz con Alex:**
+   - Probar la respuesta del nuevo footer inferior con el mouse físico y con el control remoto del TV Box.
+   - Verificar si los subtítulos embebidos en el MKV/MP4 se seleccionan adecuadamente al pulsar el botón `💬 Subtítulos`.
+2. **Buffer y barra de progreso:**
+   - Evaluar agregar una barra de progreso / seekbar visual en el footer para ver el avance y porcentaje de descarga del torrent.
+3. **Manejo de errores amigable:**
+   - Si un torrent no tiene seeds o demora demasiado, mostrar mensaje de espera con opción de cancelar o elegir otro stream.
+
+## Dispositivo TV Box & Entorno Homelab
+- **Dispositivo:** MECOOL KM6 (Amlogic S905X4, Android TV 10 / 11).
+- **Arquitectura userland:** 32-bit (`armeabi-v7a`).
+- **Conexión ADB:** `adb connect 192.168.1.128:5555`.
+- **Regla de compilación:** Nube primero (GitHub Actions). No compilar en servidor local.
 
 ## ¿Qué hace esta App?
 Tele TV es una aplicación nativa para Android TV enfocada en la reproducción y streaming en tiempo real de video vía torrents:
@@ -36,5 +50,5 @@ Tele TV es una aplicación nativa para Android TV enfocada en la reproducción y
 - **Arquitectura:** Multimódulo (`:core`, `:data`, `:tv`), Single-Activity, ViewModels con Coroutines y StateFlow.
 - **Reproducción:** Media3 / ExoPlayer 1.3.1 con `AudioAwareRenderersFactory`
 - **Red y Catálogo:** Retrofit 2.11 + OkHttp 4.12 + Gson (Protocolo Stremio v3)
-- **Torrents:** LibTorrent4j 2.1.0-39 con binarios nativos C++ JNI
+- **Torrents:** LibTorrent4j 2.1.0-39 con binarios nativos C++ JNI (`arm64-v8a`, `armeabi-v7a`, `x86_64`)
 - **CI / Build:** GitHub Actions (Ubuntu latest, JDK 17, Gradle 8.5)
