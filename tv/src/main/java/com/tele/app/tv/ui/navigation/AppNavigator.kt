@@ -14,6 +14,8 @@ import com.tele.app.tv.ui.detail.DetailScreen
 import com.tele.app.tv.ui.main.MainScreen
 import com.tele.app.tv.ui.main.MainViewModel
 import com.tele.app.tv.ui.player.PlayerScreen
+import com.tele.app.tv.ui.search.SearchScreen
+import com.tele.app.tv.ui.search.SearchViewModel
 
 @Composable
 fun AppNavigator() {
@@ -33,7 +35,24 @@ fun AppNavigator() {
                     NavPayload.selectedMeta = meta
                     navController.navigate(ROUTE_DETAIL)
                 },
+                onOpenSearch = { navController.navigate(ROUTE_SEARCH) },
                 onRetry = { viewModel.refresh() }
+            )
+        }
+
+        composable(ROUTE_SEARCH) {
+            val viewModel: SearchViewModel = viewModel()
+            val state by viewModel.state.collectAsState()
+
+            SearchScreen(
+                state = state,
+                onFiltersChange = viewModel::updateFilters,
+                onClearFilters = viewModel::clearFilters,
+                onItemSelected = { meta ->
+                    NavPayload.selectedMeta = meta
+                    navController.navigate(ROUTE_DETAIL)
+                },
+                onBack = { navController.popBackStack() }
             )
         }
 
@@ -45,8 +64,9 @@ fun AppNavigator() {
             } else {
                 DetailScreen(
                     meta = meta,
-                    onPlay = { stream ->
-                        NavPayload.playback = stream.toPlaybackRequest(meta.name)
+                    onPlay = { stream, subtitle ->
+                        val title = listOfNotNull(meta.name, subtitle).joinToString(" · ")
+                        NavPayload.playback = stream.toPlaybackRequest(title)
                         navController.navigate(ROUTE_PLAYER)
                     }
                 )
@@ -82,5 +102,6 @@ private fun StreamSource.toPlaybackRequest(title: String?): PlaybackRequest? {
 }
 
 private const val ROUTE_MAIN = "main"
+private const val ROUTE_SEARCH = "search"
 private const val ROUTE_DETAIL = "detail"
 private const val ROUTE_PLAYER = "player"

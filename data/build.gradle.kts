@@ -28,4 +28,6 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.gson)
     implementation(libs.kotlinx.coroutines.android)
+
+    testImplementation(libs.junit)
 }

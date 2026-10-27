@@ -5,12 +5,13 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.tele.app.data.addon.model.AddonCatalog
 import com.tele.app.data.addon.model.AddonManifest
+import com.tele.app.data.addon.model.Episode
+import com.tele.app.data.addon.model.MetaDetail
 import com.tele.app.data.addon.model.MetaPreview
+import com.tele.app.data.addon.model.Season
 import com.tele.app.data.addon.model.StreamSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.HttpUrl
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
@@ -24,12 +25,16 @@ class AddonException(message: String, cause: Throwable? = null) : IOException(me
  *
  * Un addon es simplemente un servidor HTTP que expone:
  *  - GET /manifest.json                     → qué ofrece
- *  - GET /catalog/{type}/{id}.json          → {"metas":[...]}
+ *  - GET /catalog/{type}/{id}/{extra}.json  → {"metas":[...]}
+ *  - GET /meta/{type}/{id}.json             → {"meta":{...}}
  *  - GET /stream/{type}/{id}.json           → {"streams":[...]}
  *
  * Se usa OkHttp + Gson en modo lectura manual del JSON: el manifest real cambia
  * de forma (`resources` puede ser lista de strings o de objetos) y conviene no
  * atarse a DTOs rígidos.
+ *
+ * Las URLs se arman en [StremioUrls]: el segmento de `extra` no se puede escapar
+ * o el addon ignora los filtros sin avisar.
  */
 class StremioAddonClient(
     private val httpClient: OkHttpClient = createHttpClient()
@@ -37,10 +42,7 @@ class StremioAddonClient(
 
     /** Descarga y normaliza el manifest de un addon. */
     suspend fun manifest(addonUrl: String): AddonManifest {
-        val url = baseUrl(addonUrl).newBuilder()
-            .addPathSegment("manifest.json")
-            .build()
-        val root = fetchJson(url)
+        val root = fetchJson(StremioUrls.manifest(addonUrl))
 
         return AddonManifest(
             id = root.stringOrNull("id") ?: addonUrl,
@@ -53,32 +55,32 @@ class StremioAddonClient(
         )
     }
 
-    /** Lista los ítems de un catálogo concreto. */
+    /**
+     * Lista los ítems de un catálogo concreto.
+     *
+     * [extras] son los filtros del protocolo (`search`, `genre`, `skip`). El
+     * llamador decide cuáles manda según lo que el manifest declare.
+     */
     suspend fun catalog(
         addonUrl: String,
-        catalog: AddonCatalog,
-        skip: Int = 0,
-        limit: Int = DEFAULT_LIMIT
+        type: String,
+        catalogId: String,
+        extras: Map<String, String> = emptyMap()
     ): List<MetaPreview> {
-        val builder = baseUrl(addonUrl).newBuilder()
-            .addPathSegment("catalog")
-            .addPathSegment(catalog.type)
-            .addPathSegment("${catalog.id}/${extraSegment(skip)}.json")
-
-        val root = fetchJson(builder.build())
+        val root = fetchJson(StremioUrls.catalog(addonUrl, type, catalogId, extras))
         return root.arrayOrNull("metas").elements()
             .mapNotNull { it.asObjectOrNull()?.toMetaPreview() }
     }
 
-    /** Lista las fuentes disponibles para un ítem (película o serie). */
-    suspend fun streams(addonUrl: String, addonName: String, type: String, id: String): List<StreamSource> {
-        val url = baseUrl(addonUrl).newBuilder()
-            .addPathSegment("stream")
-            .addPathSegment(type)
-            .addPathSegment("$id.json")
-            .build()
+    /** Ficha completa de un título: nota, géneros, runtime y temporadas/episodios. */
+    suspend fun meta(addonUrl: String, type: String, id: String): MetaDetail? {
+        val root = fetchJson(StremioUrls.meta(addonUrl, type, id))
+        return root.get("meta")?.asObjectOrNull()?.toMetaDetail()
+    }
 
-        val root = fetchJson(url)
+    /** Lista las fuentes disponibles para un ítem (película, serie o episodio). */
+    suspend fun streams(addonUrl: String, addonName: String, type: String, id: String): List<StreamSource> {
+        val root = fetchJson(StremioUrls.stream(addonUrl, type, id))
         return root.arrayOrNull("streams").elements()
             .mapNotNull { it.asObjectOrNull()?.toStreamSource(addonName) }
     }
@@ -92,10 +94,22 @@ class StremioAddonClient(
             val obj = element.asObjectOrNull() ?: return@mapNotNull null
             val type = obj.stringOrNull("type") ?: return@mapNotNull null
             val id = obj.stringOrNull("id") ?: return@mapNotNull null
+
+            val extras = obj.arrayOrNull("extra").elements().mapNotNull { it.asObjectOrNull() }
+            val genreOptions = extras
+                .firstOrNull { it.stringOrNull("name") == "genre" }
+                ?.arrayOrNull("options")
+                .elements()
+                .mapNotNull { option -> option.takeIf { it.isJsonPrimitive }?.asString }
+
             AddonCatalog(
                 type = type,
                 id = id,
-                name = obj.stringOrNull("name") ?: id
+                name = obj.stringOrNull("name") ?: id,
+                // El catálogo `year` usa el "género" para los años; se separan.
+                genres = genreOptions.filterNot { it.matches(YEAR_ONLY) },
+                years = genreOptions.mapNotNull { it.toIntOrNull() },
+                supportsSearch = extras.any { it.stringOrNull("name") == "search" }
             )
         }
 
@@ -117,14 +131,59 @@ class StremioAddonClient(
         val name = stringOrNull("name") ?: return null
         return MetaPreview(
             id = id,
-            type = stringOrNull("type") ?: "movie",
+            type = stringOrNull("type") ?: MetaPreview.TYPE_MOVIE,
             name = name,
             poster = stringOrNull("poster"),
             background = stringOrNull("background"),
             releaseInfo = stringOrNull("releaseInfo") ?: stringOrNull("year"),
-            description = stringOrNull("description")
+            description = stringOrNull("description"),
+            rating = doubleOrNull("imdbRating")
         )
     }
+
+    private fun JsonObject.toMetaDetail(): MetaDetail? {
+        val id = stringOrNull("id") ?: return null
+        val name = stringOrNull("name") ?: return null
+
+        return MetaDetail(
+            id = id,
+            type = stringOrNull("type") ?: MetaPreview.TYPE_MOVIE,
+            name = name,
+            poster = stringOrNull("poster"),
+            background = stringOrNull("background"),
+            logo = stringOrNull("logo"),
+            description = stringOrNull("description"),
+            year = stringOrNull("year"),
+            releaseInfo = stringOrNull("releaseInfo"),
+            genres = (arrayOrNull("genres") ?: arrayOrNull("genre")).stringList(),
+            rating = doubleOrNull("imdbRating"),
+            runtime = stringOrNull("runtime"),
+            status = stringOrNull("status"),
+            seasons = parseSeasons(arrayOrNull("videos"))
+        )
+    }
+
+    /** Agrupa los `videos` del meta en temporadas con sus episodios ordenados. */
+    private fun parseSeasons(videos: JsonArray?): List<Season> =
+        videos.elements()
+            .mapNotNull { element ->
+                val obj = element.asObjectOrNull() ?: return@mapNotNull null
+                val season = obj.intOrNull("season") ?: return@mapNotNull null
+                val episode = obj.intOrNull("episode") ?: return@mapNotNull null
+                val id = obj.stringOrNull("id") ?: return@mapNotNull null
+
+                Episode(
+                    id = id,
+                    season = season,
+                    episode = episode,
+                    name = obj.stringOrNull("name"),
+                    released = obj.stringOrNull("released"),
+                    overview = obj.stringOrNull("overview")
+                )
+            }
+            .groupBy { it.season }
+            .map { (number, episodes) -> Season(number, episodes.sortedBy { it.episode }) }
+            .sortedBy { it.number }
 
     private fun JsonObject.toStreamSource(addonName: String): StreamSource? {
         val infoHash = stringOrNull("infoHash")
@@ -152,7 +211,7 @@ class StremioAddonClient(
     // HTTP
     // ---------------------------------------------------------------------
 
-    private suspend fun fetchJson(url: HttpUrl): JsonObject = withContext(Dispatchers.IO) {
+    private suspend fun fetchJson(url: String): JsonObject = withContext(Dispatchers.IO) {
         val request = Request.Builder()
             .url(url)
             .header("Accept", "application/json")
@@ -173,18 +232,14 @@ class StremioAddonClient(
         }
     }
 
-    private fun baseUrl(addonUrl: String): HttpUrl =
-        addonUrl.trim().trimEnd('/').toHttpUrlOrNull()
-            ?: throw AddonException("URL de addon inválida: $addonUrl")
-
-    /** Stremio espera `skip=0` como parte del último segmento de la ruta. */
-    private fun extraSegment(skip: Int): String = "skip=$skip"
-
     private fun JsonObject.stringOrNull(name: String): String? =
         get(name)?.takeIf { it.isJsonPrimitive }?.asString?.takeIf { it.isNotBlank() }
 
     private fun JsonObject.intOrNull(name: String): Int? =
         get(name)?.takeIf { it.isJsonPrimitive }?.let { runCatching { it.asInt }.getOrNull() }
+
+    private fun JsonObject.doubleOrNull(name: String): Double? =
+        get(name)?.takeIf { it.isJsonPrimitive }?.let { runCatching { it.asDouble }.getOrNull() }
 
     private fun JsonObject.arrayOrNull(name: String): JsonArray? =
         get(name)?.takeIf { it.isJsonArray }?.asJsonArray
@@ -194,12 +249,16 @@ class StremioAddonClient(
 
     private fun JsonArray?.elements(): List<com.google.gson.JsonElement> = this?.toList() ?: emptyList()
 
+    private fun JsonArray?.stringList(): List<String> =
+        elements().mapNotNull { it.takeIf { element -> element.isJsonPrimitive }?.asString }
+
     private fun JsonObject.stringList(name: String): List<String> =
-        arrayOrNull(name).elements().mapNotNull { it.takeIf { e -> e.isJsonPrimitive }?.asString }
+        arrayOrNull(name).stringList()
 
     companion object {
         const val DEFAULT_LIMIT = 24
         private val SEEDERS_REGEX = Regex("""👤\s*(\d+)""")
+        private val YEAR_ONLY = Regex("""\d{4}""")
 
         private fun createHttpClient(): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)

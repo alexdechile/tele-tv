@@ -25,7 +25,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Assemble debug TV module
-        run: ./gradlew :tv:assembleDebug :core:test --no-daemon
+        run: ./gradlew :tv:assembleDebug :core:test :data:test --no-daemon
 
       # Falla el build si el binario nativo de libtorrent no quedó empaquetado:
       # compilaría igual, pero la app reventaría en la TV con UnsatisfiedLinkError.
@@ -38,13 +38,14 @@ jobs:
           import xml.etree.ElementTree as ET
 
           total = failures = errors = skipped = 0
-          files = glob.glob("core/build/test-results/**/TEST-*.xml", recursive=True)
+          files = glob.glob("*/build/test-results/**/TEST-*.xml", recursive=True)
           for path in files:
               root = ET.parse(path).getroot()
               total += int(root.get("tests", 0))
               failures += int(root.get("failures", 0))
               errors += int(root.get("errors", 0))
               skipped += int(root.get("skipped", 0))
+              print(f"  {path}")
 
           print(f"archivos={len(files)} tests={total} failures={failures} errors={errors} skipped={skipped}")
           if total == 0:

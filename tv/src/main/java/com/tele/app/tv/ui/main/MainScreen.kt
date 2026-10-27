@@ -38,6 +38,7 @@ import com.tele.app.data.addon.model.MetaPreview
 fun MainScreen(
     state: HomeState,
     onItemSelected: (MetaPreview) -> Unit,
+    onOpenSearch: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -45,7 +46,7 @@ fun MainScreen(
         when (state) {
             HomeState.Loading -> CenteredMessage("Cargando catálogo…")
             is HomeState.Error -> ErrorPanel(state.message, onRetry)
-            is HomeState.Content -> CatalogContent(state.rows, onItemSelected)
+            is HomeState.Content -> CatalogContent(state.rows, onItemSelected, onOpenSearch)
         }
     }
 }
@@ -80,18 +81,39 @@ private fun ErrorPanel(message: String, onRetry: () -> Unit) {
 }
 
 @Composable
-private fun CatalogContent(rows: List<HomeRow>, onItemSelected: (MetaPreview) -> Unit) {
+private fun CatalogContent(
+    rows: List<HomeRow>,
+    onItemSelected: (MetaPreview) -> Unit,
+    onOpenSearch: () -> Unit
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 48.dp, vertical = 36.dp),
         verticalArrangement = Arrangement.spacedBy(32.dp)
     ) {
         item {
-            Text(
-                text = "Tele TV",
-                style = MaterialTheme.typography.displaySmall,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
+                Text(
+                    text = "Tele TV",
+                    style = MaterialTheme.typography.displaySmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "Un buscador avanzado para encontrar qué ver",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                Card(onClick = onOpenSearch, modifier = Modifier.width(240.dp).height(64.dp)) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(text = "Buscar en el catálogo", style = MaterialTheme.typography.titleMedium)
+                    }
+                }
+            }
         }
         items(rows, key = { it.id }) { row ->
             CatalogRow(
