@@ -1,6 +1,16 @@
 # Tele TV - Bitácora de Proyecto
 
 ## Último Realizado
+- **Rediseño completo de controles en Footer persistente:**
+  - Se desactivó el controlador nativo de ExoPlayer (`app:use_controller="false"`), impidiendo que `PlayerControlView` intercepte eventos de puntero o bloquee los clics del mouse.
+  - Todos los controles de reproducción se unificaron en una barra inferior fija (footer) sobre fondo semitransparente oscuro:
+    - `← Volver`: Regresa al catálogo deteniendo la reproducción de forma limpia.
+    - `▶ Play / ⏸ Pausa`: Alterna el estado de reproducción de ExoPlayer directamente.
+    - `⛶ Pantalla`: Alterna entre ajustar relación original (`FIT`) y pantalla completa (`ZOOM`).
+    - `💬 Subtítulos`: Alterna cíclicamente entre Español, Inglés y Desactivados.
+    - `✕ Cerrar`: Oculta el footer para visualización de video limpia.
+  - Se agregó botón flotante discreto `[ ☰ Controles ]` en la esquina inferior cuando la barra está cerrada, evitando la pérdida de control y permitiendo volver a abrirla con un solo clic de mouse o botón del control.
+  - Se eliminó el auto-ocultamiento invasivo por temporizador para asegurar control total por parte del usuario.
 - **Modo de pantalla completa y selector de subtítulos (Español/Inglés):**
   - Se agregó selector interactivo de subtítulos en pantalla (`SubtitleChoice`: Español, Inglés, Desactivados) configurando `setPreferredTextLanguage` y `setTrackTypeDisabled` en ExoPlayer.
   - Se agregó botón de alternancia de pantalla completa (`RESIZE_MODE_ZOOM` para llenar 16:9 vs `RESIZE_MODE_FIT` para respetar relación original).
