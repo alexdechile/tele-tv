@@ -1,10 +1,12 @@
 # Tele TV - Bitácora de Proyecto
 
 ## Último Realizado
-- **Buffer previo y aumento de timeouts para streaming de torrents:**
-  - Se configuró `DefaultHttpDataSource.Factory` en ExoPlayer con timeout de lectura de 120s (anteriormente el valor por defecto era de solo 8s, causando `ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT`).
-  - Se configuró `DefaultLoadControl` con buffer de reproducción optimizado.
-  - Se modificó `TorrentEngine` para priorizar la primera y última pieza del archivo de video y esperar a tener la primera pieza antes de emitir `Ready`, garantizando que ExoPlayer lea de inmediato la cabecera (EBML/moov) sin desconectarse.
+- **Modo de pantalla completa y selector de subtítulos (Español/Inglés):**
+  - Se agregó selector interactivo de subtítulos en pantalla (`SubtitleChoice`: Español, Inglés, Desactivados) configurando `setPreferredTextLanguage` y `setTrackTypeDisabled` en ExoPlayer.
+  - Se agregó botón de alternancia de pantalla completa (`RESIZE_MODE_ZOOM` para llenar 16:9 vs `RESIZE_MODE_FIT` para respetar relación original).
+  - Se implementó auto-ocultamiento de controles e información tras 5 segundos de inactividad, permitiendo visualización 100% limpia a pantalla completa, reapareciendo al hacer clic o mover el mouse.
+  - Se configuraron timeouts de ExoPlayer a 120s y precarga de la primera pieza en `TorrentEngine`.
+  - Se integró `TextureView` y soporte de arquitectura 32-bit (`armeabi-v7a`).
   - Se configuró `PlayerView` para usar `TextureView` (`app:surface_type="texture_view"`), solucionando el problema donde Compose `Surface` bloqueaba u ocluía la capa de hardware de `SurfaceView`.
   - Se reemplazó el `Surface` raíz en `MainActivity` por un `Box` para evitar el buffer offscreen que provocaba pantalla negra con audio.
   - Se añadió botón visible "← Volver" y soporte de `BackHandler` en `PlayerScreen`, permitiendo volver atrás con mouse y control remoto, y deteniendo la reproducción limpia al salir.

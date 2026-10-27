@@ -2,9 +2,15 @@ package com.tele.app.tv.ui.player
 
 import android.view.LayoutInflater
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -32,6 +38,7 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioCapabilities
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import androidx.tv.material3.Card
 import androidx.tv.material3.MaterialTheme
@@ -43,10 +50,17 @@ import com.tele.app.tv.audio.AudioAwareRenderersFactory
 import com.tele.app.tv.audio.AudioSupportReport
 import com.tele.app.tv.audio.readAudioSupport
 import com.tele.app.tv.ui.navigation.PlaybackRequest
+import kotlinx.coroutines.delay
 import java.io.File
 import java.util.Locale
 
 private const val AUDIO_LOG_TAG = "TeleTvAudio"
+
+enum class SubtitleChoice(val label: String, val langCode: String?) {
+    SPANISH("Español", "spa"),
+    ENGLISH("Inglés", "eng"),
+    OFF("Desactivados", null)
+}
 
 /**
  * Reproductor. ExoPlayer nunca habla con el torrent: recibe la URL HTTP local
@@ -84,7 +98,20 @@ fun PlayerScreen(
     var audioMimeType by remember { mutableStateOf<String?>(null) }
     var audioTrackSupported by remember { mutableStateOf(true) }
 
+    var subtitleChoice by remember { mutableStateOf(SubtitleChoice.SPANISH) }
+    var isFullScreenZoom by remember { mutableStateOf(false) }
+    var showControls by remember { mutableStateOf(true) }
+    var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
+
     LaunchedEffect(audioReport) { audioReport.log(AUDIO_LOG_TAG) }
+
+    // Ocultar controles automáticamente tras 5 segundos de inactividad
+    LaunchedEffect(showControls) {
+        if (showControls) {
+            delay(5000)
+            showControls = false
+        }
+    }
 
     val player = remember(audioCapabilities) {
         val renderersFactory = AudioAwareRenderersFactory(context, audioCapabilities)
@@ -160,50 +187,137 @@ fun PlayerScreen(
         player.play()
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    // Configurar idioma o desactivar subtítulos
+    LaunchedEffect(subtitleChoice, player) {
+        val p = player
+        if (subtitleChoice.langCode == null) {
+            p.trackSelectionParameters = p.trackSelectionParameters
+                .buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                .build()
+        } else {
+            p.trackSelectionParameters = p.trackSelectionParameters
+                .buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                .setPreferredTextLanguage(subtitleChoice.langCode)
+                .setSelectUndeterminedTextLanguage(true)
+                .build()
+        }
+    }
+
+    // Ajuste de pantalla completa (Ajustar vs Llenar)
+    LaunchedEffect(isFullScreenZoom, playerViewRef) {
+        playerViewRef?.resizeMode = if (isFullScreenZoom) {
+            AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+        } else {
+            AspectRatioFrameLayout.RESIZE_MODE_FIT
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                showControls = !showControls
+            }
+    ) {
         AndroidView(
             factory = { ctx ->
                 val view = LayoutInflater.from(ctx).inflate(R.layout.tele_player_view, null) as PlayerView
                 view.apply {
                     keepScreenOn = true
                     this.player = player
+                    playerViewRef = this
                 }
             },
             modifier = Modifier.fillMaxSize()
         )
 
-        Card(
-            onClick = onBack,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(24.dp)
+        // Barra superior de controles (Auto-ocultable)
+        AnimatedVisibility(
+            visible = showControls,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.TopStart)
         ) {
-            Box(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                contentAlignment = Alignment.Center
+            Row(
+                modifier = Modifier.padding(24.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text(
-                    text = "← Volver",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = Color.White
-                )
+                Card(onClick = onBack) {
+                    Box(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "← Volver",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = Color.White
+                        )
+                    }
+                }
+
+                Card(onClick = {
+                    isFullScreenZoom = !isFullScreenZoom
+                    showControls = true
+                }) {
+                    Box(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (isFullScreenZoom) "⛶ Pantalla: Llenar" else "⛶ Pantalla: Ajustar",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = Color.White
+                        )
+                    }
+                }
+
+                Card(onClick = {
+                    subtitleChoice = when (subtitleChoice) {
+                        SubtitleChoice.SPANISH -> SubtitleChoice.ENGLISH
+                        SubtitleChoice.ENGLISH -> SubtitleChoice.OFF
+                        SubtitleChoice.OFF -> SubtitleChoice.SPANISH
+                    }
+                    showControls = true
+                }) {
+                    Box(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "💬 Subtítulos: ${subtitleChoice.label}",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = Color.White
+                        )
+                    }
+                }
             }
         }
 
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+        // Información inferior (Auto-ocultable)
+        AnimatedVisibility(
+            visible = showControls,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.BottomStart)
         ) {
-            Text(
-                text = playerError ?: statusText(state, readyInfo?.fileName),
-                color = Color.White
-            )
-            Text(
-                text = audioText(audioMimeType, audioTrackSupported, audioReport),
-                color = Color.White
-            )
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = playerError ?: statusText(state, readyInfo?.fileName),
+                    color = Color.White
+                )
+                Text(
+                    text = audioText(audioMimeType, audioTrackSupported, audioReport),
+                    color = Color.White
+                )
+            }
         }
     }
 }
