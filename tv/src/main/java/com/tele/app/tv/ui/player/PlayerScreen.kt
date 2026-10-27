@@ -5,13 +5,16 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -100,18 +103,11 @@ fun PlayerScreen(
 
     var subtitleChoice by remember { mutableStateOf(SubtitleChoice.SPANISH) }
     var isFullScreenZoom by remember { mutableStateOf(false) }
-    var showControls by remember { mutableStateOf(true) }
+    var controlsOpen by remember { mutableStateOf(true) }
+    var isPlaying by remember { mutableStateOf(false) }
     var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
 
     LaunchedEffect(audioReport) { audioReport.log(AUDIO_LOG_TAG) }
-
-    // Ocultar controles automáticamente tras 5 segundos de inactividad
-    LaunchedEffect(showControls) {
-        if (showControls) {
-            delay(5000)
-            showControls = false
-        }
-    }
 
     val player = remember(audioCapabilities) {
         val renderersFactory = AudioAwareRenderersFactory(context, audioCapabilities)
@@ -143,6 +139,10 @@ fun PlayerScreen(
                     override fun onPlayerError(error: PlaybackException) {
                         playerError = error.errorCodeName +
                             (error.message?.let { ": $it" } ?: "")
+                    }
+
+                    override fun onIsPlayingChanged(playing: Boolean) {
+                        isPlaying = playing
                     }
 
                     override fun onTracksChanged(tracks: Tracks) {
@@ -221,7 +221,7 @@ fun PlayerScreen(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) {
-                showControls = !showControls
+                controlsOpen = !controlsOpen
             }
     ) {
         AndroidView(
@@ -236,87 +236,107 @@ fun PlayerScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Barra superior de controles (Auto-ocultable)
-        AnimatedVisibility(
-            visible = showControls,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier.align(Alignment.TopStart)
-        ) {
-            Row(
-                modifier = Modifier.padding(24.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+        // Botón discreto para abrir controles si están cerrados
+        if (!controlsOpen) {
+            Card(
+                onClick = { controlsOpen = true },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(24.dp)
             ) {
-                Card(onClick = onBack) {
-                    Box(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "← Volver",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = Color.White
-                        )
-                    }
-                }
-
-                Card(onClick = {
-                    isFullScreenZoom = !isFullScreenZoom
-                    showControls = true
-                }) {
-                    Box(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (isFullScreenZoom) "⛶ Pantalla: Llenar" else "⛶ Pantalla: Ajustar",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = Color.White
-                        )
-                    }
-                }
-
-                Card(onClick = {
-                    subtitleChoice = when (subtitleChoice) {
-                        SubtitleChoice.SPANISH -> SubtitleChoice.ENGLISH
-                        SubtitleChoice.ENGLISH -> SubtitleChoice.OFF
-                        SubtitleChoice.OFF -> SubtitleChoice.SPANISH
-                    }
-                    showControls = true
-                }) {
-                    Box(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "💬 Subtítulos: ${subtitleChoice.label}",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = Color.White
-                        )
-                    }
+                Box(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "☰ Controles",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Color.White
+                    )
                 }
             }
         }
 
-        // Información inferior (Auto-ocultable)
+        // Barra inferior fija (Footer) con todos los controles
         AnimatedVisibility(
-            visible = showControls,
+            visible = controlsOpen,
             enter = fadeIn(),
             exit = fadeOut(),
-            modifier = Modifier.align(Alignment.BottomStart)
+            modifier = Modifier.align(Alignment.BottomCenter)
         ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xDD111111))
+                    .padding(horizontal = 24.dp, vertical = 14.dp)
             ) {
-                Text(
-                    text = playerError ?: statusText(state, readyInfo?.fileName),
-                    color = Color.White
-                )
-                Text(
-                    text = audioText(audioMimeType, audioTrackSupported, audioReport),
-                    color = Color.White
-                )
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Card(onClick = onBack) {
+                            Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+                                Text("← Volver", style = MaterialTheme.typography.labelLarge, color = Color.White)
+                            }
+                        }
+
+                        Card(onClick = {
+                            if (player.isPlaying) player.pause() else player.play()
+                        }) {
+                            Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+                                Text(if (isPlaying) "⏸ Pausa" else "▶ Play", style = MaterialTheme.typography.labelLarge, color = Color.White)
+                            }
+                        }
+
+                        Card(onClick = { isFullScreenZoom = !isFullScreenZoom }) {
+                            Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+                                Text(if (isFullScreenZoom) "⛶ Pantalla: Llenar" else "⛶ Pantalla: Ajustar", style = MaterialTheme.typography.labelLarge, color = Color.White)
+                            }
+                        }
+
+                        Card(onClick = {
+                            subtitleChoice = when (subtitleChoice) {
+                                SubtitleChoice.SPANISH -> SubtitleChoice.ENGLISH
+                                SubtitleChoice.ENGLISH -> SubtitleChoice.OFF
+                                SubtitleChoice.OFF -> SubtitleChoice.SPANISH
+                            }
+                        }) {
+                            Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+                                Text("💬 Subtítulos: ${subtitleChoice.label}", style = MaterialTheme.typography.labelLarge, color = Color.White)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.weight(1f))
+
+                        Card(onClick = { controlsOpen = false }) {
+                            Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+                                Text("✕ Cerrar", style = MaterialTheme.typography.labelLarge, color = Color.White)
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = playerError ?: statusText(state, readyInfo?.fileName),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFDDDDDD)
+                        )
+                        Text(
+                            text = audioText(audioMimeType, audioTrackSupported, audioReport),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFAAAAAA)
+                        )
+                    }
+                }
             }
         }
     }
