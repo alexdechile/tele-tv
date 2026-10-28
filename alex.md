@@ -1,19 +1,21 @@
 # Tele TV - Bitácora de Proyecto
 
 ## Último Realizado
-- **Rediseño completo de controles en Footer persistente:**
-  - Se desactivó el controlador nativo de ExoPlayer (`app:use_controller="false"`), impidiendo que `PlayerControlView` intercepte eventos de puntero o bloquee los clics del mouse.
-  - Todos los controles de reproducción se unificaron en una barra inferior fija (footer) sobre fondo semitransparente oscuro:
-    - `← Volver`: Regresa al catálogo deteniendo la reproducción de forma limpia.
-    - `▶ Play / ⏸ Pausa`: Alterna el estado de reproducción de ExoPlayer directamente.
-    - `⛶ Pantalla`: Alterna entre ajustar relación original (`FIT`) y pantalla completa (`ZOOM`).
-    - `💬 Subtítulos`: Alterna cíclicamente entre Español, Inglés y Desactivados.
-    - `✕ Cerrar`: Oculta el footer para visualización de video limpia.
-  - Se agregó botón flotante discreto `[ ☰ Controles ]` en la esquina inferior cuando la barra está cerrada, evitando la pérdida de control y permitiendo volver a abrirla con un solo clic de mouse o botón del control.
-  - Se eliminó el auto-ocultamiento invasivo por temporizador para asegurar control total por parte del usuario.
-- **Modo de pantalla completa y selector de subtítulos (Español/Inglés):**
-  - Se agregó selector interactivo de subtítulos en pantalla (`SubtitleChoice`: Español, Inglés, Desactivados) configurando `setPreferredTextLanguage` y `setTrackTypeDisabled` en ExoPlayer.
-  - Se agregó botón de alternancia de pantalla completa (`RESIZE_MODE_ZOOM` para llenar 16:9 vs `RESIZE_MODE_FIT` para respetar relación original).
+- **Atajos de control remoto para la botonera (Tecla `X` y `Menu`):**
+  - Se agregó escucha global de teclas en `PlayerScreen` (`onPreviewKeyEvent`).
+  - Presionar la tecla `X` (en teclado o air-mouse) o la tecla `Menu` (en controles de TV Box) alterna la visibilidad de la botonera (`controlsOpen`).
+  - Al estar oculta la barra, presionar `D-pad Down`, `D-pad Up`, `X`, `Menu` o `Enter` restaura la botonera y enfoca de inmediato el botón de reproducción/pausa.
+  - Al ocultarse la barra, el foco se transfiere automáticamente a la píldora discreta `▲ Controles (X)` para que el control remoto nunca quede con foco perdido.
+- **Manejo dinámico y real de subtítulos (ExoPlayer `Tracks`):**
+  - Se reemplazó el selector estático a ciegas por inspección de pistas reales en `onTracksChanged(tracks: Tracks)`.
+  - Mapeo inteligente de códigos ISO (`spa`, `es`, `es-419`, `es-ES`, `eng`, etc.) y detección de subtítulos forzados (`isForced`) o para personas sordas (`SDH`).
+  - Selección exacta mediante `TrackSelectionOverride` en ExoPlayer, evitando que el reproductor ignore pistas marcadas como `es` o `und`.
+  - Selección automática inteligente al iniciar el video: busca la mejor pista en español no forzada por defecto.
+  - El botón muestra el nombre real de la pista (`"Subtítulos: Español (Latino)"`, `"Subtítulos: Desactivados"` o `"Subtítulos: No disponibles"`) y cicla limpiamente entre las pistas existentes en el archivo.
+- **Buscador avanzado y soporte de episodios (previo):**
+  - Corrección del protocolo Stremio v3 en `StremioUrls` para evitar el escape del segmento de extras (`search`, `genre`).
+  - Búsqueda en dos etapas: catálogo rápido + enriquecimiento progresivo en segundo plano.
+  - Selección de fuentes por episodio individual (`tt...:S:E`).
 - **Resolución de pantalla negra (Video Surface) y Decoder AAC / Network Timeout:**
   - Se sustituyó `SurfaceView` por `TextureView` en `tele_player_view.xml` y se cambió el `Surface` raíz en `MainActivity` por `Box`, solucionando la oclusión que producía audio sin imagen.
   - Se aumentaron los timeouts de `DefaultHttpDataSource` de 8s a 120s en `PlayerScreen.kt`.

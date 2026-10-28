@@ -48,6 +48,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -55,9 +56,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.C
+import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.TrackGroup
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -99,16 +103,78 @@ private val StatusText = Color(0xFFEDEDED)
 private val StatusError = Color(0xFFFF8A80)
 private val StatusSecondary = Color(0xFF9E9E9E)
 
-enum class SubtitleChoice(val label: String, val langCode: String?) {
-    SPANISH("Español", "spa"),
-    ENGLISH("Inglés", "eng"),
-    OFF("Desactivados", null)
+data class SubtitleTrackItem(
+    val id: String,
+    val label: String,
+    val language: String?,
+    val isForced: Boolean,
+    val mediaTrackGroup: TrackGroup,
+    val trackIndex: Int
+)
+
+data class SubtitleOption(
+    val id: String,
+    val label: String,
+    val track: SubtitleTrackItem?
+)
+
+private fun friendlyLanguageName(lang: String?): String {
+    if (lang.isNullOrBlank() || lang == "und") return "Desconocido"
+    val lower = lang.lowercase().trim()
+    return when {
+        lower in listOf("es", "spa", "es-419", "es-es", "es-la") -> "Español"
+        lower in listOf("en", "eng", "en-us", "en-gb") -> "Inglés"
+        lower in listOf("pt", "por", "pt-br", "pt-pt") -> "Portugués"
+        lower in listOf("fr", "fra", "fre") -> "Francés"
+        lower in listOf("it", "ita") -> "Italiano"
+        lower in listOf("de", "deu", "ger") -> "Alemán"
+        lower in listOf("ja", "jpn") -> "Japonés"
+        lower in listOf("ko", "kor") -> "Coreano"
+        lower in listOf("zh", "zho", "chi") -> "Chino"
+        lower in listOf("ru", "rus") -> "Ruso"
+        else -> runCatching {
+            Locale.forLanguageTag(lower).getDisplayLanguage(Locale("es")).replaceFirstChar { it.uppercase() }
+        }.getOrNull()?.takeIf { it.isNotBlank() } ?: lower.uppercase()
+    }
 }
 
-private fun SubtitleChoice.next(): SubtitleChoice = when (this) {
-    SubtitleChoice.SPANISH -> SubtitleChoice.ENGLISH
-    SubtitleChoice.ENGLISH -> SubtitleChoice.OFF
-    SubtitleChoice.OFF -> SubtitleChoice.SPANISH
+private fun buildSubtitleLabel(format: Format, trackNumber: Int): String {
+    val langName = friendlyLanguageName(format.language)
+    val customLabel = format.label?.trim()?.takeIf { it.isNotBlank() }
+    val isForced = (format.selectionFlags and C.SELECTION_FLAG_FORCED) != 0
+    val isSdh = (format.roleFlags and C.ROLE_FLAG_CAPTION_SDH) != 0
+
+    val base = when {
+        customLabel != null && !customLabel.equals(langName, ignoreCase = true) -> {
+            if (langName != "Desconocido") "$langName ($customLabel)" else customLabel
+        }
+        langName != "Desconocido" -> langName
+        else -> "Pista $trackNumber"
+    }
+
+    val tags = mutableListOf<String>()
+    if (isForced && !base.contains("forz", ignoreCase = true)) tags.add("Forzado")
+    if (isSdh && !base.contains("sdh", ignoreCase = true)) tags.add("SDH")
+
+    return if (tags.isNotEmpty()) "$base [${tags.joinToString(", ")}]" else base
+}
+
+private fun applySubtitleSelection(player: ExoPlayer, option: SubtitleOption) {
+    val builder = player.trackSelectionParameters.buildUpon()
+    if (option.track == null) {
+        builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+        builder.clearOverridesOfType(C.TRACK_TYPE_TEXT)
+    } else {
+        builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+        builder.clearOverridesOfType(C.TRACK_TYPE_TEXT)
+        builder.setOverrideForType(
+            TrackSelectionOverride(
+                option.track.mediaTrackGroup,
+                listOf(option.track.trackIndex)
+            )
+        )
+    }
+    player.trackSelectionParameters = builder.build()
 }
 
 /**
@@ -148,7 +214,13 @@ fun PlayerScreen(
     var audioMimeType by remember { mutableStateOf<String?>(null) }
     var audioTrackSupported by remember { mutableStateOf(true) }
 
-    var subtitleChoice by remember { mutableStateOf(SubtitleChoice.SPANISH) }
+    var availableSubtitles by remember {
+        mutableStateOf(listOf(SubtitleOption("off", "Desactivados", null)))
+    }
+    var selectedSubtitle by remember {
+        mutableStateOf(SubtitleOption("off", "Desactivados", null))
+    }
+    var userChangedSubtitle by remember { mutableStateOf(false) }
     var isFullScreenZoom by remember { mutableStateOf(false) }
     var controlsOpen by remember { mutableStateOf(true) }
     var isPlaying by remember { mutableStateOf(false) }
@@ -212,13 +284,64 @@ fun PlayerScreen(
                         if (audioGroup == null) {
                             audioMimeType = null
                             audioTrackSupported = true
-                            return
+                        } else {
+                            val selectedIndex = (0 until audioGroup.length)
+                                .firstOrNull { index -> audioGroup.isTrackSelected(index) }
+                                ?: 0
+                            audioMimeType = audioGroup.getTrackFormat(selectedIndex).sampleMimeType
+                            audioTrackSupported = audioGroup.isSupported()
                         }
-                        val selectedIndex = (0 until audioGroup.length)
-                            .firstOrNull { index -> audioGroup.isTrackSelected(index) }
-                            ?: 0
-                        audioMimeType = audioGroup.getTrackFormat(selectedIndex).sampleMimeType
-                        audioTrackSupported = audioGroup.isSupported()
+
+                        val textGroups = tracks.groups.filter { it.type == C.TRACK_TYPE_TEXT }
+                        val options = mutableListOf<SubtitleOption>()
+                        options.add(SubtitleOption("off", "Desactivados", null))
+
+                        var counter = 1
+                        for (group in textGroups) {
+                            for (i in 0 until group.length) {
+                                val format = group.getTrackFormat(i)
+                                val isForced = (format.selectionFlags and C.SELECTION_FLAG_FORCED) != 0
+                                val lang = format.language?.lowercase()?.trim()
+                                val label = buildSubtitleLabel(format, counter++)
+                                val item = SubtitleTrackItem(
+                                    id = "${group.mediaTrackGroup.id}_$i",
+                                    label = label,
+                                    language = lang,
+                                    isForced = isForced,
+                                    mediaTrackGroup = group.mediaTrackGroup,
+                                    trackIndex = i
+                                )
+                                options.add(SubtitleOption(item.id, item.label, item))
+                            }
+                        }
+                        availableSubtitles = options
+
+                        if (!userChangedSubtitle) {
+                            val defaultSpanish = options.firstOrNull { opt ->
+                                val t = opt.track ?: return@firstOrNull false
+                                val lang = t.language ?: ""
+                                val isSpanish = lang in listOf("es", "spa", "es-419", "es-es", "es-la") ||
+                                    t.label.contains("español", ignoreCase = true) ||
+                                    t.label.contains("spanish", ignoreCase = true) ||
+                                    t.label.contains("castellano", ignoreCase = true)
+                                isSpanish && !t.isForced
+                            } ?: options.firstOrNull { opt ->
+                                val t = opt.track ?: return@firstOrNull false
+                                val lang = t.language ?: ""
+                                lang in listOf("es", "spa", "es-419", "es-es", "es-la") ||
+                                    t.label.contains("español", ignoreCase = true) ||
+                                    t.label.contains("spanish", ignoreCase = true) ||
+                                    t.label.contains("castellano", ignoreCase = true)
+                            }
+
+                            if (defaultSpanish != null) {
+                                selectedSubtitle = defaultSpanish
+                                applySubtitleSelection(this@apply, defaultSpanish)
+                            } else {
+                                selectedSubtitle = options.first()
+                                applySubtitleSelection(this@apply, options.first())
+                            }
+                        }
                     }
                 })
             }
@@ -260,21 +383,56 @@ fun PlayerScreen(
         }
     }
 
-    // Configurar idioma o desactivar subtítulos
-    LaunchedEffect(subtitleChoice, player) {
-        val p = player
-        if (subtitleChoice.langCode == null) {
-            p.trackSelectionParameters = p.trackSelectionParameters
-                .buildUpon()
-                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-                .build()
+    val onCycleSubtitle: () -> Unit = {
+        if (availableSubtitles.size > 1) {
+            userChangedSubtitle = true
+            val currentIndex = availableSubtitles.indexOfFirst { it.id == selectedSubtitle.id }
+            val nextIndex = (if (currentIndex >= 0) currentIndex + 1 else 0) % availableSubtitles.size
+            val nextOption = availableSubtitles[nextIndex]
+            selectedSubtitle = nextOption
+            applySubtitleSelection(player, nextOption)
+        }
+    }
+
+    val subtitleButtonText = when {
+        availableSubtitles.size <= 1 -> "Subtítulos: No disponibles"
+        selectedSubtitle.track == null -> "Subtítulos: Desactivados"
+        else -> "Subtítulos: ${selectedSubtitle.label}"
+    }
+
+    val handleKeyEvent: (androidx.compose.ui.input.key.KeyEvent) -> Boolean = { event ->
+        if (event.type == KeyEventType.KeyDown) {
+            when (event.key) {
+                Key.X, Key.Menu -> {
+                    controlsOpen = !controlsOpen
+                    true
+                }
+                Key.DirectionDown, Key.DirectionUp -> {
+                    if (!controlsOpen) {
+                        controlsOpen = true
+                        true
+                    } else {
+                        false
+                    }
+                }
+                else -> false
+            }
         } else {
-            p.trackSelectionParameters = p.trackSelectionParameters
-                .buildUpon()
-                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                .setPreferredTextLanguage(subtitleChoice.langCode)
-                .setSelectUndeterminedTextLanguage(true)
-                .build()
+            false
+        }
+    }
+
+    LaunchedEffect(controlsOpen) {
+        if (controlsOpen) {
+            repeat(4) {
+                if (runCatching { playFocus.requestFocus() }.isSuccess) return@LaunchedEffect
+                delay(50)
+            }
+        } else {
+            repeat(4) {
+                if (runCatching { closedFocus.requestFocus() }.isSuccess) return@LaunchedEffect
+                delay(50)
+            }
         }
     }
 
@@ -307,6 +465,7 @@ fun PlayerScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
+            .onPreviewKeyEvent(handleKeyEvent)
             // Ojo: acá NO va `clickable`. Un `clickable` es enfocable, y ese
             // foco fantasma se robaba la navegación del control remoto: el dpad
             // no llegaba a los botones y OK cerraba la barra. Con puntero puro
@@ -331,7 +490,7 @@ fun PlayerScreen(
         // Botón discreto para recuperar los controles cuando están ocultos.
         if (!controlsOpen) {
             ControlPill(
-                text = "▲ Controles",
+                text = "▲ Controles (X)",
                 onClick = { controlsOpen = true },
                 focusRequester = closedFocus,
                 modifier = Modifier
@@ -353,8 +512,8 @@ fun PlayerScreen(
                 onTogglePlay = { if (player.isPlaying) player.pause() else player.play() },
                 isZoom = isFullScreenZoom,
                 onToggleZoom = { isFullScreenZoom = !isFullScreenZoom },
-                subtitle = subtitleChoice,
-                onCycleSubtitle = { subtitleChoice = subtitleChoice.next() },
+                subtitleLabel = subtitleButtonText,
+                onCycleSubtitle = onCycleSubtitle,
                 onHide = { controlsOpen = false },
                 statusLine = statusLine,
                 statusIsError = playerError != null,
@@ -382,7 +541,7 @@ private fun ControlBar(
     onTogglePlay: () -> Unit,
     isZoom: Boolean,
     onToggleZoom: () -> Unit,
-    subtitle: SubtitleChoice,
+    subtitleLabel: String,
     onCycleSubtitle: () -> Unit,
     onHide: () -> Unit,
     statusLine: String,
@@ -471,13 +630,13 @@ private fun ControlBar(
                 )
 
                 ControlPill(
-                    text = "Subtítulos: ${subtitle.label}",
+                    text = subtitleLabel,
                     onClick = onCycleSubtitle
                 )
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                ControlPill(text = "× Ocultar", onClick = onHide)
+                ControlPill(text = "× Ocultar (X)", onClick = onHide)
             }
         }
     }
