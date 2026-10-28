@@ -142,7 +142,8 @@ private fun buildSubtitleLabel(format: Format, trackNumber: Int): String {
     val langName = friendlyLanguageName(format.language)
     val customLabel = format.label?.trim()?.takeIf { it.isNotBlank() }
     val isForced = (format.selectionFlags and C.SELECTION_FLAG_FORCED) != 0
-    val isSdh = (format.roleFlags and C.ROLE_FLAG_CAPTION_SDH) != 0
+    val isSdh = customLabel?.contains("sdh", ignoreCase = true) == true ||
+        (format.roleFlags and C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND) != 0
 
     val base = when {
         customLabel != null && !customLabel.equals(langName, ignoreCase = true) -> {
