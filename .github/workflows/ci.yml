@@ -112,8 +112,10 @@ jobs:
       - name: Guardar logcat
         if: always()
         run: |
-          adb logcat -d > logcat-completo.txt || true
-          adb logcat -d -b crash > logcat-crash.txt || true
+          # `adb logcat -d` sin tope se cuelga en el emulador del runner: se lee
+          # un tramo acotado con -t, que es lo que hace falta para diagnosticar.
+          timeout 60 adb logcat -d -t 30000 > logcat-completo.txt || true
+          timeout 60 adb logcat -d -b crash -t 5000 > logcat-crash.txt || true
           wc -l logcat-completo.txt logcat-crash.txt || true
 
       - name: Publicar logcat

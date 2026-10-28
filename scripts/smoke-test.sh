@@ -13,9 +13,9 @@ WAIT_SECONDS="${2:-25}"
 fail() {
   echo "::error::$1"
   echo "===== CRASH BUFFER ====="
-  adb logcat -d -b crash | tail -150
+  timeout 30 adb logcat -d -b crash -t 800 | tail -150
   echo "===== FATAL ====="
-  adb logcat -d | grep -iE "androidruntime|fatal exception|$PKG" | tail -150
+  timeout 30 adb logcat -d -t 4000 | grep -iE "androidruntime|fatal exception|$PKG" | tail -150
   exit 1
 }
 
@@ -43,5 +43,5 @@ fi
 
 echo "OK: la app sigue viva (pid $PID)"
 echo "== logcat de la app =="
-adb logcat -d | grep -iE "$PKG|TeleTvAudio|TeleTvCrash" | tail -60
+timeout 30 adb logcat -d -t 4000 | grep -iE "$PKG|TeleTvAudio|TeleTvCrash" | tail -60
 exit 0

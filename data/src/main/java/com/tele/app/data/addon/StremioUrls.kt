@@ -47,8 +47,15 @@ object StremioUrls {
      */
     fun encodeExtraValue(value: String): String = urlEncode(value)
 
-    /** El id viaja como segmento de ruta (`tt0903747:1:1`); se codifica por si trae rarezas. */
-    private fun encodePathId(id: String): String = urlEncode(id)
+    /**
+     * El id viaja como segmento de ruta (`tt0903747:1:1`).
+     *
+     * Los dos puntos **no** se codifican: son válidos en un segmento de ruta y el
+     * ecosistema Stremio los usa crudos. Se codifica cada parte por separado para
+     * que un id raro (con espacios o `/`) no rompa la URL. Cinemeta y Torrentio
+     * aceptan `%3A` igual, pero así los logs se leen.
+     */
+    private fun encodePathId(id: String): String = id.split(":").joinToString(":") { urlEncode(it) }
 
     private fun normalize(baseUrl: String): String {
         val trimmed = baseUrl.trim().trimEnd('/')
