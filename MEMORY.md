@@ -1,11 +1,22 @@
 # Tele TV - Memoria y Estado del Proyecto
 
-## Estado Actual de la Sesión (2026-10-26, cierre 22:35)
-- **Últimos commits:** `adbfb1c` (video arranca), `6b635bd` (foco del remoto), `8468dfe` (controles clicables + rediseño + seek).
-- **APK instalado en el TV Box:** `tv-debug.apk` del Run `40432204045` (commit `adbfb1c`).
-- **Estado del TV Box:** MECOOL KM6 (`192.168.1.128:5555`). App detenida al cerrar la sesión.
+## Estado Actual de la Sesión (2026-10-28)
+- **Últimos commits:** `d4da027` (SDH flag), `dd0b0e9` (tecla X/Menu y subtitulos dinamicos), `c6d8849` (id episodio con dos puntos).
+- **Estado del TV Box:** MECOOL KM6 (`192.168.1.94:5555`). Conectado y operativo.
 
-## Bugs corregidos en esta sesión (verificados en el equipo)
+## Bugs y Mejoras Recientes
+
+1. **Barra gris en la parte superior eliminada (Fullscreen / Immersive Mode):**
+   - El tema `Theme.TeleTv` usaba `android:Theme.Black` que tiene `windowNoTitle=false` y agrega el DecorView de título nativo de Android (banda gris superior).
+   - Solución: se cambió el padre a `android:Theme.Black.NoTitleBar.Fullscreen`, con `windowNoTitle=true` y `windowFullscreen=true`. En `MainActivity.onCreate` se aplicó `Window.FEATURE_NO_TITLE`, flag `FLAG_FULLSCREEN` y `WindowInsetsControllerCompat.hide(systemBars())`.
+
+2. **Limpieza de interfaz del reproductor y control por OK:**
+   - Se removió la píldora flotante persistente `▲ Controles (X)` que obstruía la imagen al ocultar controles.
+   - Se removió el botón redundante `× Ocultar (X)` de la botonera.
+   - Pantalla limpia 100% durante la reproducción.
+   - La barra inferior se restaura al presionar la tecla `OK` (o cualquier flecha de D-pad, Menú, o tap/clic en pantalla).
+   - Auto-ocultamiento tras 5 segundos de inactividad mientras corre el video.
+   - La tecla `Back` con la barra abierta ahora oculta la barra en vez de salirse abruptamente del video.
 
 1. **Los botones de la barra no recibían el clic (mouse).**
    - Evidencia medida: con el build viejo, un tap exacto sobre `Subtítulos` (bounds

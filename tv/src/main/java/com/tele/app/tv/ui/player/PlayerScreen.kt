@@ -195,7 +195,15 @@ fun PlayerScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    BackHandler(onBack = onBack)
+    var controlsOpen by remember { mutableStateOf(true) }
+
+    BackHandler {
+        if (controlsOpen) {
+            controlsOpen = false
+        } else {
+            onBack()
+        }
+    }
 
     val context = LocalContext.current
     val engine = remember(context) {
@@ -223,7 +231,6 @@ fun PlayerScreen(
     }
     var userChangedSubtitle by remember { mutableStateOf(false) }
     var isFullScreenZoom by remember { mutableStateOf(false) }
-    var controlsOpen by remember { mutableStateOf(true) }
     var isPlaying by remember { mutableStateOf(false) }
     var isBuffering by remember { mutableStateOf(false) }
     var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
@@ -235,7 +242,18 @@ fun PlayerScreen(
     var bufferedMs by remember { mutableStateOf(0L) }
 
     val playFocus = remember { FocusRequester() }
-    val closedFocus = remember { FocusRequester() }
+    val rootFocusRequester = remember { FocusRequester() }
+
+    var lastInteractionTime by remember { mutableStateOf(System.currentTimeMillis()) }
+    val notifyInteraction = { lastInteractionTime = System.currentTimeMillis() }
+
+    // Auto-ocultar controles tras 5 segundos de inactividad mientras se reproduce el video
+    LaunchedEffect(controlsOpen, isPlaying, lastInteractionTime) {
+        if (controlsOpen && isPlaying) {
+            delay(5000)
+            controlsOpen = false
+        }
+    }
 
     LaunchedEffect(audioReport) { audioReport.log(AUDIO_LOG_TAG) }
 
@@ -385,6 +403,7 @@ fun PlayerScreen(
     }
 
     val onCycleSubtitle: () -> Unit = {
+        notifyInteraction()
         if (availableSubtitles.size > 1) {
             userChangedSubtitle = true
             val currentIndex = availableSubtitles.indexOfFirst { it.id == selectedSubtitle.id }
@@ -403,20 +422,29 @@ fun PlayerScreen(
 
     val handleKeyEvent: (androidx.compose.ui.input.key.KeyEvent) -> Boolean = { event ->
         if (event.type == KeyEventType.KeyDown) {
-            when (event.key) {
-                Key.X, Key.Menu -> {
-                    controlsOpen = !controlsOpen
-                    true
-                }
-                Key.DirectionDown, Key.DirectionUp -> {
-                    if (!controlsOpen) {
+            notifyInteraction()
+            if (!controlsOpen) {
+                when (event.key) {
+                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.Spacebar,
+                    Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight,
+                    Key.Menu, Key.X, Key.MediaPlayPause, Key.MediaPlay, Key.MediaPause -> {
                         controlsOpen = true
                         true
-                    } else {
-                        false
                     }
+                    else -> false
                 }
-                else -> false
+            } else {
+                when (event.key) {
+                    Key.Back, Key.Escape -> {
+                        controlsOpen = false
+                        true
+                    }
+                    Key.X, Key.Menu -> {
+                        controlsOpen = false
+                        true
+                    }
+                    else -> false
+                }
             }
         } else {
             false
@@ -431,7 +459,7 @@ fun PlayerScreen(
             }
         } else {
             repeat(4) {
-                if (runCatching { closedFocus.requestFocus() }.isSuccess) return@LaunchedEffect
+                if (runCatching { rootFocusRequester.requestFocus() }.isSuccess) return@LaunchedEffect
                 delay(50)
             }
         }
@@ -447,6 +475,7 @@ fun PlayerScreen(
     }
 
     val seekTo: (Long) -> Unit = { target ->
+        notifyInteraction()
         val total = durationMs
         if (total > 0L) {
             val clamped = target.coerceIn(0L, total)
@@ -466,13 +495,18 @@ fun PlayerScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
+            .focusRequester(rootFocusRequester)
+            .focusable(enabled = !controlsOpen)
             .onPreviewKeyEvent(handleKeyEvent)
             // Ojo: acá NO va `clickable`. Un `clickable` es enfocable, y ese
             // foco fantasma se robaba la navegación del control remoto: el dpad
             // no llegaba a los botones y OK cerraba la barra. Con puntero puro
             // el fondo alterna controles y el foco se queda donde corresponde.
             .pointerInput(Unit) {
-                detectTapGestures { controlsOpen = !controlsOpen }
+                detectTapGestures {
+                    notifyInteraction()
+                    controlsOpen = !controlsOpen
+                }
             }
     ) {
         AndroidView(
@@ -488,17 +522,9 @@ fun PlayerScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Botón discreto para recuperar los controles cuando están ocultos.
-        if (!controlsOpen) {
-            ControlPill(
-                text = "▲ Controles (X)",
-                onClick = { controlsOpen = true },
-                focusRequester = closedFocus,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(28.dp)
-            )
-        }
+        // Cuando controlsOpen es false, la pantalla queda 100% limpia sin botones
+        // obtrusivos flotando sobre la película. Con la tecla OK del control remoto
+        // (o D-pad, Menú, etc.) vuelven a aparecer.
 
         AnimatedVisibility(
             visible = controlsOpen,
@@ -510,12 +536,17 @@ fun PlayerScreen(
                 playFocusRequester = playFocus,
                 onBack = onBack,
                 isPlaying = isPlaying,
-                onTogglePlay = { if (player.isPlaying) player.pause() else player.play() },
+                onTogglePlay = {
+                    notifyInteraction()
+                    if (player.isPlaying) player.pause() else player.play()
+                },
                 isZoom = isFullScreenZoom,
-                onToggleZoom = { isFullScreenZoom = !isFullScreenZoom },
+                onToggleZoom = {
+                    notifyInteraction()
+                    isFullScreenZoom = !isFullScreenZoom
+                },
                 subtitleLabel = subtitleButtonText,
                 onCycleSubtitle = onCycleSubtitle,
-                onHide = { controlsOpen = false },
                 statusLine = statusLine,
                 statusIsError = playerError != null,
                 audioLine = audioText(audioMimeType, audioTrackSupported, audioReport),
@@ -544,7 +575,6 @@ private fun ControlBar(
     onToggleZoom: () -> Unit,
     subtitleLabel: String,
     onCycleSubtitle: () -> Unit,
-    onHide: () -> Unit,
     statusLine: String,
     statusIsError: Boolean,
     audioLine: String,
@@ -634,10 +664,6 @@ private fun ControlBar(
                     text = subtitleLabel,
                     onClick = onCycleSubtitle
                 )
-
-                Spacer(modifier = Modifier.weight(1f))
-
-                ControlPill(text = "× Ocultar (X)", onClick = onHide)
             }
         }
     }

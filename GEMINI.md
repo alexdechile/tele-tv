@@ -15,7 +15,7 @@ Tele TV es una app de Android TV para ver películas y series por streaming P2P 
      5. Lanzar: `adb shell am start -n com.tele.app.tv/.ui.MainActivity`.
 
 2. **Hardware del TV Box (MECOOL KM6):**
-   - **IP ADB:** `192.168.1.128:5555` (conectar vía `adb connect 192.168.1.128:5555`).
+   - **IP ADB:** `192.168.1.94:5555` (conectar vía `adb connect 192.168.1.94:5555`).
    - **CPU:** Amlogic S905X4.
    - **Userland ABI:** 32-bit (`armeabi-v7a`). Cualquier librería nativa C/C++ (`.so`) DEBE incluir soporte `armeabi-v7a` (`libtorrent4j-android-arm`).
 

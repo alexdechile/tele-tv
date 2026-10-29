@@ -1,6 +1,15 @@
 # Tele TV - Bitácora de Proyecto
 
 ## Último Realizado
+- **Eliminación de la barra gris superior (Modo Inmersivo / Fullscreen Real):**
+  - Se configuró el tema `Theme.TeleTv` con `parent="android:Theme.Black.NoTitleBar.Fullscreen"`, `android:windowNoTitle=true` y `android:windowFullscreen=true` en `themes.xml`.
+  - En `MainActivity.onCreate`, se desactivó la barra de título nativa (`requestWindowFeature(Window.FEATURE_NO_TITLE)`), se fijó flag `FLAG_FULLSCREEN` y se configuró `WindowCompat` con `WindowInsetsControllerCompat.hide(systemBars())` y `BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`.
+- **Limpieza total del reproductor y control por OK del remoto:**
+  - Se eliminó completamente la píldora flotante obtrusiva (`▲ Controles (X)`) y el botón `× Ocultar (X)` de la barra.
+  - Al estar oculta la barra, el video se reproduce 100% limpio a pantalla completa sin elementos invasivos.
+  - Presionar la tecla `OK` (o `D-pad Center`, `Enter`, `D-pad Up/Down`, `Menú`, o clic en pantalla) restaura la botonera enfocando de inmediato el botón de reproducción/pausa.
+  - Se agregó auto-ocultamiento inteligente tras 5 segundos de inactividad mientras el video se reproduce (se mantiene abierta si está en pausa).
+  - Presionar `Back` con la barra abierta ahora oculta la barra en vez de salirse del video (un segundo `Back` regresa a la ficha).
 - **Atajos de control remoto para la botonera (Tecla `X` y `Menu`):**
   - Se agregó escucha global de teclas en `PlayerScreen` (`onPreviewKeyEvent`).
   - Presionar la tecla `X` (en teclado o air-mouse) o la tecla `Menu` (en controles de TV Box) alterna la visibilidad de la botonera (`controlsOpen`).
@@ -36,7 +45,7 @@
 ## Dispositivo TV Box & Entorno Homelab
 - **Dispositivo:** MECOOL KM6 (Amlogic S905X4, Android TV 10 / 11).
 - **Arquitectura userland:** 32-bit (`armeabi-v7a`).
-- **Conexión ADB:** `adb connect 192.168.1.128:5555`.
+- **Conexión ADB:** `adb connect 192.168.1.94:5555`.
 - **Regla de compilación:** Nube primero (GitHub Actions). No compilar en servidor local.
 
 ## ¿Qué hace esta App?

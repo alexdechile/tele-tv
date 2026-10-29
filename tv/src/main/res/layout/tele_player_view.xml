@@ -10,7 +10,9 @@
     android:id="@+id/player_view"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/black"
     android:clickable="false"
     android:focusable="false"
     app:surface_type="texture_view"
-    app:use_controller="false" />
+    app:use_controller="false"
+    app:show_buffering="never" />
