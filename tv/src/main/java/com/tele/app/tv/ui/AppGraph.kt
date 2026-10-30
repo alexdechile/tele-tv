@@ -1,6 +1,7 @@
 package com.tele.app.tv.ui
 
 import com.tele.app.data.addon.AddonRepository
+import com.tele.app.data.enrich.WikipediaEnricher
 
 /**
  * Composición de dependencias de la app.
@@ -11,4 +12,10 @@ import com.tele.app.data.addon.AddonRepository
  */
 object AppGraph {
     val addons: AddonRepository by lazy { AddonRepository() }
+
+    /**
+     * Ficha cultural (Wikidata/Wikipedia). Se comparte una sola instancia para
+     * que la caché en memoria sirva a todas las pantallas.
+     */
+    val wiki: WikipediaEnricher by lazy { WikipediaEnricher() }
 }

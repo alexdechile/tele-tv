@@ -1,6 +1,16 @@
 # Tele TV - Bitácora de Proyecto
 
 ## Último Realizado
+- **Ficha cultural en la pantalla de detalle (Wikidata + Wikipedia):**
+  - Al abrir una película o serie, debajo de la sinopsis aparece una ficha con quién la dirigió (o quién la creó, en el caso de las series), una biografía corta del director, el reparto principal, la productora, el país, el idioma y el año.
+  - Los datos salen de las APIs oficiales de Wikidata y Wikipedia (texto plano en español), no de scraping de HTML.
+  - La ficha se muestra con la atribución "Fuente: Wikipedia (CC BY-SA)" y solo agrega texto: la navegación con el control remoto no cambia.
+  - Si Wikidata no tiene el título o internet falla, la pantalla queda exactamente como antes, con los datos de siempre; la ficha es opcional y nunca bloquea.
+- **Seguridad del motor de torrents (ajustes explícitos):**
+  - La app ya no le pide al router que abra puertos por su cuenta (UPnP y NAT-PMP apagados).
+  - Tampoco anuncia en la red local lo que se está bajando (descubrimiento local apagado).
+  - La subida tiene un tope para no comerse el ancho de banda del video, y el puerto de escucha queda declarado de forma explícita.
+  - Hay pruebas automáticas que fallan si alguien vuelve a encender esos interruptores.
 - **Eliminación de la barra gris superior (Modo Inmersivo / Fullscreen Real):**
   - Se configuró el tema `Theme.TeleTv` con `parent="android:Theme.Black.NoTitleBar.Fullscreen"`, `android:windowNoTitle=true` y `android:windowFullscreen=true` en `themes.xml`.
   - En `MainActivity.onCreate`, se desactivó la barra de título nativa (`requestWindowFeature(Window.FEATURE_NO_TITLE)`), se fijó flag `FLAG_FULLSCREEN` y se configuró `WindowCompat` con `WindowInsetsControllerCompat.hide(systemBars())` y `BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`.

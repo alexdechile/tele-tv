@@ -30,7 +30,14 @@ import java.io.File
  *
  * ExoPlayer nunca ve el torrent: recibe `http://127.0.0.1:PORT/stream`.
  */
-class TorrentEngine(private val saveDir: File) {
+class TorrentEngine(
+    private val saveDir: File,
+    /**
+     * Ajustes de la sesión. Se aplican una sola vez, al crear la sesión; por
+     * defecto vienen endurecidos (sin UPnP, sin NAT-PMP, sin LSD).
+     */
+    private val settings: TorrentEngineSettings = TorrentEngineSettings()
+) {
 
     private val lock = Any()
 
@@ -168,7 +175,10 @@ class TorrentEngine(private val saveDir: File) {
 
     private fun ensureSession(): SessionManager = synchronized(lock) {
         sessionManager ?: SessionManager().also { manager ->
-            manager.start()
+            // start(params) y no start(): los parámetros llevan el
+            // settings_pack de TorrentEngineSettings, que es justamente lo que
+            // apaga UPnP, NAT-PMP y LSD y pone el tope de subida.
+            manager.start(settings.toSessionParams())
             sessionManager = manager
         }
     }

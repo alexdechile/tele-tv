@@ -1,12 +1,14 @@
 package com.tele.app.core.torrent
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.libtorrent4j.AddTorrentParams
 import org.libtorrent4j.LibTorrent
 import org.libtorrent4j.SessionManager
+import org.libtorrent4j.swig.settings_pack
 import org.libtorrent4j.swig.torrent_flags_t
 import java.io.File
 
@@ -48,6 +50,46 @@ class TorrentSessionTest {
 
             // Valida contra el nativo la firma y los flags que usa TorrentEngine.
             session.download(magnet, saveDir, torrent_flags_t())
+        } finally {
+            session.stop()
+        }
+    }
+
+    /**
+     * Lo que de verdad importa del endurecimiento: que libtorrent **acepte** el
+     * settings_pack y que la sesión quede con UPnP/NAT-PMP/LSD apagados. Si el
+     * nativo ignorara alguna de las claves, este test lo delata.
+     */
+    @Test
+    fun `la sesion arranca con los ajustes endurecidos`() {
+        val settings = TorrentEngineSettings(listenPort = 0)
+
+        val session = SessionManager()
+        session.start(settings.toSessionParams())
+        try {
+            assertTrue("la sesion deberia estar corriendo", session.isRunning())
+
+            val applied = session.settings()
+            assertFalse(
+                "UPnP debe quedar apagado en la sesion real",
+                applied.getBoolean(settings_pack.bool_types.enable_upnp.swigValue())
+            )
+            assertFalse(
+                "NAT-PMP debe quedar apagado en la sesion real",
+                applied.getBoolean(settings_pack.bool_types.enable_natpmp.swigValue())
+            )
+            assertFalse(
+                "LSD debe quedar apagado en la sesion real",
+                applied.getBoolean(settings_pack.bool_types.enable_lsd.swigValue())
+            )
+            assertEquals(
+                settings.listenInterfaces,
+                applied.getString(settings_pack.string_types.listen_interfaces.swigValue())
+            )
+            assertEquals(
+                settings.uploadRateLimitKbps * 1024,
+                applied.getInteger(settings_pack.int_types.upload_rate_limit.swigValue())
+            )
         } finally {
             session.stop()
         }

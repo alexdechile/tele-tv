@@ -35,6 +35,8 @@ import com.tele.app.data.addon.model.MetaDetail
 import com.tele.app.data.addon.model.MetaPreview
 import com.tele.app.data.addon.model.Season
 import com.tele.app.data.addon.model.StreamSource
+import com.tele.app.data.enrich.EnrichedInfo
+import com.tele.app.data.enrich.WikipediaEnricher
 import com.tele.app.tv.ui.AppGraph
 import kotlinx.coroutines.CancellationException
 import kotlin.math.round
@@ -61,11 +63,32 @@ fun DetailScreen(
     meta: MetaPreview,
     onPlay: (StreamSource, String?) -> Unit,
     modifier: Modifier = Modifier,
-    addons: AddonRepository = AppGraph.addons
+    addons: AddonRepository = AppGraph.addons,
+    wiki: WikipediaEnricher = AppGraph.wiki
 ) {
     val detail by produceState<MetaDetail?>(initialValue = null, key1 = meta.type, key2 = meta.id) {
         value = try {
             addons.detail(meta.type, meta.id)
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (error: Exception) {
+            null
+        }
+    }
+
+    // Ficha cultural: llega después y nunca bloquea. Si Wikipedia falla o el
+    // título no está, la pantalla queda como antes (Cinemeta).
+    val enriched by produceState<EnrichedInfo?>(
+        initialValue = null,
+        key1 = meta.id,
+        key2 = detail?.firstYear
+    ) {
+        value = try {
+            wiki.enrich(
+                metaId = meta.id,
+                type = meta.type,
+                fallbackYear = detail?.firstYear ?: meta.year
+            )
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (error: Exception) {
@@ -120,7 +143,7 @@ fun DetailScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                meta.description?.let { description ->
+                (meta.description ?: enriched?.overview)?.let { description ->
                     Text(
                         text = description,
                         style = MaterialTheme.typography.bodyMedium,
@@ -128,6 +151,11 @@ fun DetailScreen(
                         maxLines = 3,
                         overflow = TextOverflow.Ellipsis
                     )
+                }
+
+                enriched?.takeIf { it.hasContent }?.let { info ->
+                    Spacer(modifier = Modifier.height(12.dp))
+                    WikipediaCard(info)
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -174,6 +202,65 @@ fun DetailScreen(
                 }
             }
         }
+    }
+}
+
+/**
+ * Ficha cultural (Wikidata/Wikipedia) bajo la sinopsis.
+ *
+ * Todo es texto plano ya limpiado en `:data`: no hay HTML, ni WebView, ni
+ * enlaces clicables. Tampoco agrega botones, así que la navegación con el
+ * control remoto sigue exactamente igual que antes de esta sección.
+ */
+@Composable
+private fun WikipediaCard(info: EnrichedInfo) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        info.creditLine().takeIf { it.isNotBlank() }?.let { line ->
+            Text(
+                text = line,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        if (info.crew.isNotEmpty()) {
+            Text(
+                text = "${info.crewLabel}: ${info.crewLine()}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        info.biography?.let { biography ->
+            Text(
+                text = biography,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        if (info.cast.isNotEmpty()) {
+            Text(
+                text = "Reparto: ${info.castLine()}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        Text(
+            text = "Fuente: ${info.license}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1
+        )
     }
 }
 

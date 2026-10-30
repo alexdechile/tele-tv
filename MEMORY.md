@@ -1,8 +1,41 @@
 # Tele TV - Memoria y Estado del Proyecto
 
-## Estado Actual de la Sesión (2026-10-28)
-- **Últimos commits:** `d4da027` (SDH flag), `dd0b0e9` (tecla X/Menu y subtitulos dinamicos), `c6d8849` (id episodio con dos puntos).
-- **Estado del TV Box:** MECOOL KM6 (`192.168.1.94:5555`). Conectado y operativo.
+## Estado Actual de la Sesión (2026-10-30)
+- **Últimos commits:** `a72f8ec` (modo inmersivo), `d4da027` (SDH flag), `dd0b0e9` (tecla X/Menu y subtitulos dinamicos).
+- **Estado del TV Box:** MECOOL KM6 (`192.168.1.94:5555`). Apagado y sin acceso (Alex está fuera); no se puede instalar ni probar en dispositivo.
+- **Pendiente de verificación en TV:** la ficha cultural (Wikidata/Wikipedia) y los ajustes endurecidos del motor solo están probados en CI (tests JVM + nativo de Linux), no en el KM6.
+
+## Seguridad del motor de torrents (`TorrentEngineSettings`)
+
+- **Problema:** `SessionManager().start()` sin `settings_pack` heredaba los defaults de libtorrent 1.2:
+  `enable_upnp=true`, `enable_natpmp=true`, `enable_lsd=true`, `listen_interfaces=0.0.0.0:6881`,
+  `upload_rate_limit=0` (sin tope). El motor abría puertos en el router sin permiso del usuario.
+- **Solución:** `core/.../TorrentEngineSettings.kt` (data class con `toSettingsPack()` / `toSessionParams()`)
+  y `TorrentEngine` la aplica con `manager.start(settings.toSessionParams())`.
+  UPnP/NAT-PMP/LSD apagados; subida con tope (800 KB/s); bajada libre; puerto declarado.
+- **Verificación:** `TorrentSessionTest` arranca una sesión real con el nativo de Linux y lee
+  `session.settings()` para comprobar que UPnP/NAT-PMP/LSD quedaron en `false`.
+  `TorrentEngineSettingsTest` cubre los defaults sin tocar el nativo.
+- **Pendiente:** exponer el proxy SOCKS5 (`TorrentEngineSettings.proxy`) en ajustes (M5) y decidir
+  si se quiere una opción de "no escuchar" para quien use VPN.
+
+## Ficha cultural (Wikipedia/Wikidata) — `:data/enrich`
+
+- **Por qué APIs y no scraping:** se usan `wbgetentities`, `list=search` y `rest_v1/page/summary`,
+  que devuelven JSON y texto plano. Sin HTML, sin WebView, sin JavaScript.
+- **Flujo:** IMDb id (`tt…`) → `haswbstatement:P345=` → entidad → P170/P57 (creador/director),
+  P161 (reparto), P272 (productora), P495/P364 (país/idioma), P577/P580 (año) → una sola llamada
+  de etiquetas → resumen del director (bio) y resumen en español del título. Máximo 5 requests,
+  luego cache en memoria (`MAX_CACHED = 48`).
+- **Defensas:** allowlist de hosts (`www.wikidata.org`, `es.wikipedia.org`, `en.wikipedia.org`)
+  validada también sobre la URL final del redirect; tope de 1 MB por respuesta; timeouts 6/8/12 s;
+  User-Agent identificable (política de Wikimedia); `WikiText.clean()` quita etiquetas y entidades,
+  colapsa espacios y corta en 420/700 caracteres antes de tocar Compose.
+- **Atribución:** el hecho viene de Wikidata (CC0) y la prosa de Wikipedia (CC BY-SA); la UI muestra
+  "Fuente: Wikipedia (CC BY-SA)". Si se quiere la URL del artículo en pantalla, está en
+  `EnrichedInfo.sourceUrl`.
+- **Privacidad (a decidir):** Wikipedia ve qué títulos se consultan desde la IP del TV. Si molesta,
+  el siguiente paso es proxyar el enriquecimiento por el homelab (mismo patrón que Radios).
 
 ## Bugs y Mejoras Recientes
 
