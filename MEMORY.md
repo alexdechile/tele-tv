@@ -1,14 +1,39 @@
 # Tele TV - Memoria y Estado del Proyecto
 
 ## Estado Actual de la Sesión (2026-10-30, noche)
-- **Últimos commits:** `0eaeef9` (inicio del archivo primero), `b69f505` (ficha cultural + motor endurecido), `a72f8ec` (modo inmersivo).
-- **Estado del TV Box:** MECOOL KM6 conectado y **verificado en dispositivo**. Instalado `0eaeef9`.
+- **Últimos commits:** `c4aee2b` (foco de la primera fuente), `5a82340` (la ficha no se escapa),
+  `1ea0fd0` (buscador y detalle), `0eaeef9` (inicio del archivo primero), `b69f505` (ficha cultural).
+- **Estado del TV Box:** MECOOL KM6 conectado y **verificado en dispositivo**. Instalado `c4aee2b`.
 - **Cómo encontrarlo:** `scripts/tvbox.sh` escanea la subred por el puerto 5555 y confirma el modelo KM6.
   El equipo tiene **dos interfaces activas**: Wi-Fi `192.168.1.94` y cable `192.168.1.128`; la IP
   depende de cuál esté en uso y cambia por DHCP. Reservar la IP en el router para que no se pierda.
 - **Verificado en el KM6 (no solo en CI):** la ficha cultural sale con datos reales (director,
   bio, reparto, productora, país, idioma, atribución CC BY-SA) y el video **arranca a los 26 s**
   con la caché vacía, reproduciendo sin barras ni recortes.
+
+## Layout de búsqueda y detalle (2026-10-30, noche)
+
+**La TV es de 960×540 dp, no 1920×1080 px.** Todo el cálculo de espacio tiene que hacerse en dp:
+una pantalla de 540 dp de alto se llena con muy poco. De ahí salieron los tres bugs de layout.
+
+1. **Buscador sin resultados.** `ResultsArea` evaluaba `state.filters.isBlank -> Hint(...)` ANTES
+   de la rama de ítems. Al abrir el buscador sin filtros (`isBlank == true`) la grilla no se
+   dibujaba nunca: el encabezado decía "42 resultados" (porque `statusText` consulta `searched`
+   antes que `isBlank`) y abajo quedaba el cartel "Cargando lo más popular…" para siempre. Como no
+   había nada focusable debajo, el D-pad "no andaba". Ahora los ítems van primero en el `when`.
+2. **Teclado que tapaba todo.** Las teclas eran de 44 dp y el panel medía ~215 dp. Ahora son de
+   30 dp (`TextPad`/`KeyCap`) y quedan ~200 dp para la grilla. Los paneles de género/año/nota eran
+   `FlowRow` (con 20 géneros crecían a media pantalla): ahora son `LazyRow` de una sola fila, con
+   scroll lateral, y arrancan mostrando la opción marcada.
+3. **Ficha cultural que se comía el detalle.** Estaba en el alto fijo del encabezado y dejaba
+   ~100 dp para las fuentes: se veía una y la segunda cortada. Ahora es el **primer ítem del mismo
+   `LazyColumn`** que las fuentes, y el estado de las fuentes se pide en `DetailScreen` (no dentro
+   de la lista: anidar `LazyColumn` se mide con altura infinita y recorta).
+   - Ojo con el detalle fino: la ficha llega **después** que las fuentes. Al insertarse como ítem 0
+     la lista conserva el ancla del foco y la ficha queda por encima del borde visible (el
+     "recuadro que se escapa"). Por eso `StreamsList` vuelve al tope cuando aparece la ficha.
+   - Segundo detalle fino: cuando las fuentes aparecían y no había nada enfocado, el control remoto
+     quedaba muerto hasta apretar una flecha. Ahora la primera tarjeta se enfoca sola (una vez).
 
 ## Arranque del video: el inicio del archivo bajaba al final (resuelto en `0eaeef9`)
 

@@ -1,6 +1,13 @@
 # Tele TV - Bitácora de Proyecto
 
 ## Último Realizado
+- **Pantalla de búsqueda y de detalle arregladas (probadas en el TV Box):**
+  - **Buscador:** los resultados ahora se ven aunque el teclado esté abierto y se bajan con el D-pad. Antes la lista de resultados no se dibujaba nunca si no había filtros (el encabezado decía "42 resultados" y abajo no había nada), el teclado ocupaba media pantalla y el control remoto no tenía a dónde ir.
+  - El teclado es más chico, los paneles de género/año/nota ahora son una sola fila que se corre de costado (antes se envolvían y crecían a media pantalla) y las tarjetas de resultado son más chicas, así que siempre queda una fila entera a la vista mientras se escribe.
+  - **Detalle:** la ficha cultural ya no se queda con el alto fijo de la pantalla. Ahora es el primer ítem de la lista de fuentes: se ve al entrar y se va para arriba cuando bajás a las fuentes, que es lo que uno quiere tocar.
+  - Antes se veía una sola fuente y la segunda cortada en el borde (un recuadro que "se escapaba" de la pantalla). Ahora se ven tres o cuatro y todas se alcanzan con el D-pad.
+  - En las series la ficha va compacta (una línea de biografía) arriba del selector de temporadas y episodios.
+  - **También se arregló:** al abrir una película a veces no quedaba nada enfocado y el control remoto "no hacía nada" hasta apretar una flecha. Ahora la primera fuente se enfoca sola.
 - **El video arranca en segundos, no al final de la descarga (probado en el TV Box):**
   - Antes: la película se veía recién cuando el torrent iba casi al 100 %. Medido: con 81 % descargado la pantalla seguía negra y el archivo todavía **no tenía el principio** (los primeros ~8 % estaban vacíos en el disco del KM6).
   - Causa: el motor marcaba todas las piezas del archivo con la misma prioridad máxima, así que libtorrent las repartía "como vinieran", y no usaba el plazo (*deadline*) que libtorrent tiene justamente para streaming.
