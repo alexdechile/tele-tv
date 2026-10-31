@@ -223,6 +223,9 @@ fun DetailScreen(
                         },
                         header = enriched?.takeIf { it.hasContent },
                         wikiExpanded = wikiExpanded,
+                        // La sinopsis en español solo se despliega si arriba se
+                        // está mostrando la descripción en inglés de Cinemeta.
+                        wikiOverviewLines = if (meta.description != null) 8 else 0,
                         onToggleWiki = { wikiExpanded = !wikiExpanded },
                         modifier = Modifier.fillMaxWidth().weight(1f)
                     )
@@ -244,7 +247,12 @@ fun DetailScreen(
  * quedaba con el espacio y las fuentes aparecían cortadas al fondo).
  */
 @Composable
-private fun WikipediaCard(info: EnrichedInfo, biographyLines: Int = 2, castLines: Int = 1) {
+private fun WikipediaCard(
+    info: EnrichedInfo,
+    biographyLines: Int = 2,
+    castLines: Int = 1,
+    overviewLines: Int = 0
+) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         info.creditLine().takeIf { it.isNotBlank() }?.let { line ->
             Text(
@@ -282,6 +290,18 @@ private fun WikipediaCard(info: EnrichedInfo, biographyLines: Int = 2, castLines
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = castLines,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        // Sinopsis en español de Wikipedia: arriba se muestra la de Cinemeta,
+        // que viene en inglés. Solo aparece al desplegar la ficha.
+        info.overview?.takeIf { overviewLines > 0 && it.isNotBlank() }?.let { overview ->
+            Text(
+                text = "Sinopsis (Wikipedia): $overview",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = overviewLines,
                 overflow = TextOverflow.Ellipsis
             )
         }
@@ -433,6 +453,7 @@ private fun StreamsList(
     onPlay: (StreamSource) -> Unit,
     header: EnrichedInfo?,
     wikiExpanded: Boolean,
+    wikiOverviewLines: Int,
     onToggleWiki: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -475,7 +496,8 @@ private fun StreamsList(
                     WikipediaCard(
                         info = info,
                         biographyLines = if (wikiExpanded) 12 else 2,
-                        castLines = if (wikiExpanded) 3 else 1
+                        castLines = if (wikiExpanded) 3 else 1,
+                        overviewLines = if (wikiExpanded) wikiOverviewLines else 0
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Pill(
