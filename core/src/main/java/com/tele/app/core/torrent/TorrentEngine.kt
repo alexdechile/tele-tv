@@ -110,14 +110,20 @@ class TorrentEngine(
         val firstPiece = files.pieceIndexAtFile(fileIndex)
         val lastPiece = files.lastPieceIndexAtFile(fileIndex)
 
-        // Priorizar primera y última pieza para lectura rápida de cabeceras (moov/EBML)
-        runCatching { handle.piecePriority(firstPiece, Priority.TOP_PRIORITY) }
-        runCatching { handle.piecePriority(lastPiece, Priority.TOP_PRIORITY) }
+        // El inicio del archivo manda: sin esas piezas el reproductor no puede
+        // leer ni la cabecera del MP4/MKV y la pantalla queda negra. La cola
+        // (moov/Cues al final) se pide cuando ExoPlayer la pida, no antes: si
+        // compite con el inicio solo lo retrasa.
+        StreamPriorities.boostHead(handle, firstPiece, lastPiece)
 
-        // Esperar a tener la primera pieza para que ExoPlayer lea la cabecera sin timeout
+        // Esperar a tener la primera pieza para que ExoPlayer lea la cabecera sin
+        // timeout. Se reafirma la prioridad en cada vuelta: libtorrent la
+        // reacomoda al entrar peers nuevos y sin esto la ventana se diluye.
         val pieceDeadline = System.currentTimeMillis() + FIRST_PIECE_TIMEOUT_MS
-        while (currentCoroutineContext().isActive && !handle.havePiece(firstPiece) && System.currentTimeMillis() < pieceDeadline) {
+        while (currentCoroutineContext().isActive && !handle.havePiece(firstPiece)) {
+            StreamPriorities.boostHead(handle, firstPiece, lastPiece)
             emitProgress(handle)?.let { emit(it) }
+            if (System.currentTimeMillis() >= pieceDeadline) break
             delay(PROGRESS_INTERVAL_MS)
         }
 
@@ -215,7 +221,11 @@ class TorrentEngine(
     /** Prioriza solo el archivo elegido y activa la descarga secuencial. */
     private fun prepareDownload(handle: TorrentHandle, torrentInfo: TorrentInfo, fileIndex: Int) {
         for (index in 0 until torrentInfo.numFiles()) {
-            val priority = if (index == fileIndex) Priority.TOP_PRIORITY else Priority.IGNORE
+            // DEFAULT y no TOP_PRIORITY: si *todas* las piezas quedan en TOP, la
+            // prioridad no ordena nada y libtorrent reparte por "rarest first".
+            // Eso es justo lo que hacía llegar el inicio del archivo al final de
+            // la descarga (el video arrancaba recién cerca del 100 %).
+            val priority = if (index == fileIndex) Priority.DEFAULT else Priority.IGNORE
             runCatching { handle.filePriority(index, priority) }
         }
 
@@ -223,6 +233,10 @@ class TorrentEngine(
         val firstPiece = files.pieceIndexAtFile(fileIndex)
         val lastPiece = files.lastPieceIndexAtFile(fileIndex)
         runCatching { handle.setSequentialRange(firstPiece, lastPiece) }
+
+        // La ventana del inicio se fuerza aparte, con deadline: es lo que hace
+        // que llegue en segundos en vez de "cuando toque".
+        StreamPriorities.boostHead(handle, firstPiece, lastPiece)
     }
 
     private fun emitProgress(handle: TorrentHandle): TorrentStreamState.Progress? = try {

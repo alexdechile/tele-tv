@@ -37,6 +37,10 @@ class HttpStreamServer(
     private val executor = Executors.newCachedThreadPool()
     private val running = AtomicBoolean(true)
 
+    /** Última vez que se refrescó el anticipo de piezas (ver [awaitPiece]). */
+    @Volatile
+    private var lastLookaheadAt = 0L
+
     val url: String
         get() = "http://$LOOPBACK:$port/stream"
 
@@ -174,7 +178,17 @@ class HttpStreamServer(
         while (System.currentTimeMillis() < deadline) {
             if (!running.get()) return false
             if (pieces.hasPiece(piece)) return true
-            prioritizeAround(piece, lastPiece)
+
+            // La pieza pedida se reafirma en cada vuelta: es la que desbloquea
+            // la espera. El anticipo es solo una ayuda, así que se refresca una
+            // vez por segundo y no en cada vuelta (cada `prioritize` encola un
+            // deadline en libtorrent; 9 piezas × 10 veces/s es ruido puro).
+            pieces.prioritize(piece)
+            val now = System.currentTimeMillis()
+            if (now - lastLookaheadAt >= LOOKAHEAD_INTERVAL_MS) {
+                lastLookaheadAt = now
+                prioritizeLookahead(piece, lastPiece)
+            }
             Thread.sleep(POLL_INTERVAL_MS)
         }
 
@@ -182,12 +196,11 @@ class HttpStreamServer(
     }
 
     /**
-     * Sube la prioridad de la pieza pedida y de las siguientes. Esto es lo que
-     * evita que un seek al final del video (moov/índice) espere a que termine
-     * la descarga secuencial desde el principio.
+     * Sube la prioridad de las piezas que vienen. Esto es lo que evita que un
+     * seek al final del video (moov/índice) espere a que termine la descarga
+     * secuencial desde el principio.
      */
-    private fun prioritizeAround(piece: Int, lastPiece: Int) {
-        pieces.prioritize(piece)
+    private fun prioritizeLookahead(piece: Int, lastPiece: Int) {
         for (next in piece + 1..piece + PRIORITY_LOOKAHEAD) {
             if (next > lastPiece) break
             pieces.prioritize(next)
@@ -249,5 +262,6 @@ class HttpStreamServer(
         const val FILE_APPEAR_TIMEOUT_MS = 60_000L
         const val SOCKET_TIMEOUT_MS = 120_000
         const val PRIORITY_LOOKAHEAD = 8
+        const val LOOKAHEAD_INTERVAL_MS = 1_000L
     }
 }
