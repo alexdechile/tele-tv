@@ -1,5 +1,6 @@
 package com.tele.app.tv.ui.player
 
+import android.util.Log
 import android.view.LayoutInflater
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -85,7 +86,8 @@ import java.io.File
 import java.util.Locale
 
 private const val AUDIO_LOG_TAG = "TeleTvAudio"
-
+/** Borrado del material bajado (se ve el video y se va de la TV). */
+private const val CACHE_LOG_TAG = "TeleTvCache"
 /** Cuánto salta el seek al apretar izquierda/derecha en el control remoto. */
 private const val SEEK_STEP_MS = 10_000L
 
@@ -207,7 +209,12 @@ fun PlayerScreen(
 
     val context = LocalContext.current
     val engine = remember(context) {
-        TorrentEngine(File(context.cacheDir, "torrents"))
+        TorrentEngine(File(context.cacheDir, "torrents")).apply {
+            // El material se borra al salir del reproductor. Si el borrado no
+            // se puede completar, queda al menos rastro en logcat y la app lo
+            // vuelve a intentar en el siguiente arranque.
+            onCleanupProblem = { message -> Log.w(CACHE_LOG_TAG, message) }
+        }
     }
     val viewModel = remember(engine) { TorrentStreamViewModel(engine) }
 
@@ -371,6 +378,10 @@ fun PlayerScreen(
             player.stop()
             player.release()
             viewModel.stop()
+            // Cierra la sesión nativa de libtorrent. Sin esto quedaba viva una
+            // sesión con su socket de escucha y sus trackers después de salir
+            // del video: la app seguía "presente" en la red sin mostrar nada.
+            engine.shutdown()
         }
     }
 

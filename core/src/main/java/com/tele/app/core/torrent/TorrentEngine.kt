@@ -16,6 +16,7 @@ import org.libtorrent4j.TorrentHandle
 import org.libtorrent4j.TorrentInfo
 import org.libtorrent4j.swig.torrent_flags_t
 import java.io.File
+import java.util.concurrent.Executors
 
 /**
  * Motor de torrents real (libtorrent4j).
@@ -31,19 +32,41 @@ import java.io.File
  * ExoPlayer nunca ve el torrent: recibe `http://127.0.0.1:PORT/stream`.
  */
 class TorrentEngine(
+    /** Directorio raíz de la caché. Cada reproducción usa un subdirectorio propio. */
     private val saveDir: File,
     /**
      * Ajustes de la sesión. Se aplican una sola vez, al crear la sesión; por
      * defecto vienen endurecidos (sin UPnP, sin NAT-PMP, sin LSD).
      */
-    private val settings: TorrentEngineSettings = TorrentEngineSettings()
+    private val settings: TorrentEngineSettings = TorrentEngineSettings(),
+    /**
+     * Borrar el material al terminar. Es el comportamiento por defecto: la TV
+     * box no es un disco de descargas, se ve el video y se va. Con `false` el
+     * archivo queda en la caché (solo para depurar a mano).
+     */
+    private val deleteOnStop: Boolean = true
 ) {
+
+    /** Se avisa acá si el borrado no pudo completarse (para no fallar en silencio). */
+    var onCleanupProblem: ((String) -> Unit)? = null
 
     private val lock = Any()
 
     private var sessionManager: SessionManager? = null
     private var activeServer: HttpStreamServer? = null
     private var activeHandle: TorrentHandle? = null
+
+    /** Directorio de la reproducción en curso; se borra al parar. */
+    private var activeDir: File? = null
+
+    /**
+     * Hilo aparte para borrar: `stop()` lo llaman la UI y la cancelación de la
+     * corrutina, y borrar un archivo que libtorrent acaba de soltar puede
+     * tardar un poco. No se bloquea al llamador por eso.
+     */
+    private val cleanupExecutor = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "torrent-cleanup").apply { isDaemon = true }
+    }
 
     init {
         this.saveDir.mkdirs()
@@ -54,11 +77,13 @@ class TorrentEngine(
         try {
             runStream(magnetUri, preferredFileIndex)
         } catch (cancellation: CancellationException) {
-            stop()
             throw cancellation
         } catch (error: Exception) {
-            stop()
             emit(TorrentStreamState.Error(error.message ?: "Error inesperado del motor de torrents"))
+        } finally {
+            // También en los caminos de error: si el torrent quedó a medio bajar
+            // (sin seeds, metadatos vencidos), no se deja el material en disco.
+            stop()
         }
     }.flowOn(Dispatchers.IO)
 
@@ -77,7 +102,14 @@ class TorrentEngine(
 
         stop()
 
-        manager.download(magnetUri, saveDir, torrent_flags_t())
+        // Cada reproducción baja a su propio subdirectorio. Así el borrado es
+        // quirúrgico (no se toca nada de otra sesión), dos reproducciones
+        // seguidas no se pisan, y si el proceso muere queda un directorio
+        // identificable que la app barre en el siguiente arranque.
+        val sessionDir = File(saveDir, "session-${safeDirName(infoHash)}-${System.currentTimeMillis()}")
+        synchronized(lock) { activeDir = sessionDir }
+
+        manager.download(magnetUri, sessionDir, torrent_flags_t())
 
         val handle = awaitTorrent(manager, infoHash)
         if (handle == null) {
@@ -127,10 +159,23 @@ class TorrentEngine(
             delay(PROGRESS_INTERVAL_MS)
         }
 
+        // La ruta la escribe el torrent, no la app: se resuelve a la fuerza
+        // dentro del directorio de esta sesión. Si el torrent trae `../..` o
+        // una ruta absoluta, se corta acá en vez de leer fuera de la caché.
+        val videoFile = TorrentPaths.resolveWithin(sessionDir, files.filePath(fileIndex))
+        if (videoFile == null) {
+            emit(
+                TorrentStreamState.Error(
+                    "El torrent trae una ruta de archivo no permitida: ${files.filePath(fileIndex)}"
+                )
+            )
+            return
+        }
+
         val server = HttpStreamServer(
             pieceLength = torrentInfo.pieceLength().toLong(),
             numPieces = torrentInfo.numPieces(),
-            file = File(saveDir, files.filePath(fileIndex)),
+            file = videoFile,
             fileOffsetInTorrent = files.fileOffset(fileIndex),
             fileSize = fileSize,
             contentType = TorrentVideoFiles.contentTypeOf(fileName),
@@ -160,8 +205,15 @@ class TorrentEngine(
         }
     }
 
-    /** Corta el torrent activo y cierra el servidor local. */
+    /**
+     * Corta el torrent activo, cierra el servidor local y **borra lo bajado**.
+     *
+     * Ojo con el orden que importa: el `TorrentHandle` se saca de la sesión
+     * antes de tocar el disco, porque mientras libtorrent tenga el archivo
+     * abierto el borrado puede fallar en Android.
+     */
     fun stop() {
+        val dirToDelete: File?
         synchronized(lock) {
             activeServer?.stop()
             activeServer = null
@@ -172,12 +224,75 @@ class TorrentEngine(
             if (handle != null && manager != null) {
                 runCatching { manager.remove(handle) }
             }
+
+            dirToDelete = activeDir
+            activeDir = null
         }
+
+        if (deleteOnStop) {
+            dirToDelete?.let { scheduleDelete(it) }
+        }
+    }
+
+    /**
+     * Cierra la sesión de libtorrent además del torrent activo.
+     *
+     * Sin esto cada visita al reproductor dejaba una sesión nativa viva con su
+     * socket de escucha y sus trackers: la app seguía "presente" en la red
+     * después de salir del video. Se llama al desmontar la pantalla.
+     */
+    fun shutdown() {
+        stop()
+        val manager = synchronized(lock) {
+            val current = sessionManager
+            sessionManager = null
+            current
+        }
+        if (manager != null) {
+            runCatching { manager.stop() }
+        }
+        cleanupExecutor.shutdown()
     }
 
     // ---------------------------------------------------------------------
     // Interno
     // ---------------------------------------------------------------------
+
+    /**
+     * Borra en segundo plano, con reintentos. Si aun así queda algo, se avisa
+     * por [onCleanupProblem] y la app lo barre en el siguiente arranque
+     * (`TeleTvApp`), así que nunca se acumula para siempre.
+     */
+    private fun scheduleDelete(dir: File) {
+        val queued = runCatching {
+            cleanupExecutor.execute {
+                var attempts = 0
+                while (dir.exists() && attempts < DELETE_ATTEMPTS) {
+                    val deleted = runCatching { dir.deleteRecursively() }.getOrDefault(false)
+                    if (deleted || !dir.exists()) return@execute
+                    attempts++
+                    if (attempts < DELETE_ATTEMPTS) {
+                        runCatching { Thread.sleep(DELETE_RETRY_DELAY_MS) }
+                    }
+                }
+                if (dir.exists()) {
+                    onCleanupProblem?.invoke(
+                        "No se pudo borrar ${dir.name}: quedan " +
+                            "${TorrentPaths.sizeOf(dir)} bytes en la caché"
+                    )
+                }
+            }
+        }.isSuccess
+
+        if (!queued) {
+            // El executor ya se cerró (shutdown): se intenta igual, sincrónico.
+            runCatching { dir.deleteRecursively() }
+        }
+    }
+
+    /** Nombre de directorio sin nada raro: solo letras y dígitos del hash. */
+    private fun safeDirName(infoHash: Sha1Hash): String =
+        infoHash.toString().filter { it.isLetterOrDigit() }.lowercase().ifEmpty { "sin-hash" }
 
     private fun ensureSession(): SessionManager = synchronized(lock) {
         sessionManager ?: SessionManager().also { manager ->
@@ -256,5 +371,9 @@ class TorrentEngine(
         const val FIRST_PIECE_TIMEOUT_MS = 60_000L
         const val POLL_INTERVAL_MS = 300L
         const val PROGRESS_INTERVAL_MS = 1_000L
+
+        /** Reintentos de borrado: libtorrent tarda un instante en soltar el archivo. */
+        const val DELETE_ATTEMPTS = 8
+        const val DELETE_RETRY_DELAY_MS = 250L
     }
 }

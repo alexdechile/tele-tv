@@ -22,7 +22,8 @@
 
     <application
         android:name=".TeleTvApp"
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
         android:theme="@style/Theme.TeleTv"
