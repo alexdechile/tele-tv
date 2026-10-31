@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -68,8 +69,8 @@ fun SearchScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 40.dp, vertical = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 32.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             SearchHeader(state = state, onBack = onBack)
 
@@ -81,6 +82,11 @@ fun SearchScreen(
                 onClearFilters = onClearFilters
             )
 
+            // El panel de filtros va arriba de los resultados y **compacto**: en
+            // 540 dp de alto un teclado grande dejaba a los resultados sin un
+            // solo píxel (el teclado "cubría la pantalla"). Con el panel corto,
+            // los resultados quedan siempre a la vista abajo y se baja con el
+            // D-pad.
             openFilter?.let { kind ->
                 FilterPanel(
                     kind = kind,
@@ -116,7 +122,7 @@ private fun SearchHeader(state: SearchUiState, onBack: () -> Unit) {
     ) {
         Text(
             text = "Buscador",
-            style = MaterialTheme.typography.displaySmall,
+            style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onSurface
         )
 
@@ -132,12 +138,20 @@ private fun SearchHeader(state: SearchUiState, onBack: () -> Unit) {
     }
 }
 
+/**
+ * Estado del encabezado.
+ *
+ * Ojo con el orden: si ya hay resultados cargados se muestra la cuenta, aunque
+ * los filtros estén vacíos. Antes ganaba la rama `filters.isBlank` y el
+ * encabezado decía "42 resultados" mientras la grilla mostraba "Cargando lo más
+ * popular…" para siempre: los 42 quedaban invisibles.
+ */
 private fun statusText(state: SearchUiState): String = when {
-    state.loading -> "Buscando…"
+    state.loading && state.items.isEmpty() -> "Buscando…"
     state.error != null -> "No se pudo buscar: ${state.error}"
-    state.searched && state.items.isEmpty() && !state.enriching -> "Sin resultados con estos filtros"
     state.enriching -> "${state.items.size} resultados · afinando nota y temporadas…"
-    state.searched -> "${state.items.size} resultados"
+    state.items.isNotEmpty() -> "${state.items.size} resultados"
+    state.searched -> "Sin resultados con estos filtros"
     state.filters.isBlank -> "Lo más popular de películas y series"
     else -> "Ajustá los filtros"
 }
@@ -309,14 +323,27 @@ private fun PanelBox(title: String, content: @Composable () -> Unit) {
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * Opciones en **una sola fila horizontal**.
+ *
+ * Antes era un `FlowRow` que se envolvía solo: con 20 géneros el panel crecía a
+ * media pantalla y empujaba los resultados fuera. En fila horizontal scrollea
+ * de costado (que es gratis con el D-pad) y el alto queda fijo.
+ */
 @Composable
 private fun OptionRow(options: List<String>, selected: String, onSelect: (String) -> Unit) {
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        options.forEach { option ->
+    val rowState = rememberLazyListState()
+    val selectedIndex = options.indexOf(selected)
+
+    LaunchedEffect(options, selected) {
+        // Deja la opción marcada a la vista al abrir el panel.
+        val target = if (selectedIndex > 1) selectedIndex - 1 else 0
+        rowState.scrollToItem(target)
+    }
+
+    LazyRow(state = rowState, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        items(options.size) { index ->
+            val option = options[index]
             val isSelected = option == selected
             Chip(
                 text = if (isSelected) "✓ $option" else option,
@@ -330,19 +357,29 @@ private fun OptionRow(options: List<String>, selected: String, onSelect: (String
 // Teclado en pantalla
 // -------------------------------------------------------------------------
 
+/**
+ * Teclado en pantalla, en versión compacta.
+ *
+ * Con teclas de 44 dp el panel se comía la mitad de la pantalla y los
+ * resultados no entraban. Estas son de 30 dp: siguen siendo cómodas con el
+ * D-pad (se navega igual, solo que hay más teclas por fila) y dejan ~200 dp
+ * libres para la grilla.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TextPad(query: String, onChange: (String) -> Unit, onDone: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
             text = if (query.isBlank()) "\"…\"" else "\"$query\"",
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
 
         FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             LETTER_ROWS.forEach { row ->
                 row.forEach { letter ->
@@ -362,11 +399,11 @@ private fun KeyCap(text: String, wide: Boolean = false, onClick: () -> Unit) {
     Card(
         onClick = onClick,
         modifier = Modifier
-            .width(if (wide) 120.dp else 44.dp)
-            .height(44.dp)
+            .width(if (wide) 84.dp else 34.dp)
+            .height(30.dp)
     ) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(text = text, style = MaterialTheme.typography.labelMedium)
+            Text(text = text, style = MaterialTheme.typography.labelSmall, maxLines = 1)
         }
     }
 }
@@ -383,18 +420,13 @@ private fun ResultsArea(
 ) {
     Box(modifier = modifier.fillMaxWidth()) {
         when {
-            state.loading -> Hint("Buscando en los catálogos…")
-
-            state.error != null -> Hint("No se pudo buscar: ${state.error}")
-
-            state.filters.isBlank -> Hint("Cargando lo más popular…")
-
-            state.isEmptyResult -> Hint("Sin resultados. Probá con otro género, otra década o menos filtros.")
-
-            else -> LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 170.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
+            // Los resultados van PRIMERO. Si hay ítems se dibujan, tengan o no
+            // filtros: el caso "filtros vacíos" es justamente "lo más popular".
+            // Antes esa rama ganaba siempre y la grilla nunca aparecía.
+            state.items.isNotEmpty() -> LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 120.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(state.items.size) { index ->
@@ -402,6 +434,14 @@ private fun ResultsArea(
                     ResultCard(item = item, onClick = { onItemSelected(item.meta) })
                 }
             }
+
+            state.loading -> Hint("Buscando en los catálogos…")
+
+            state.error != null -> Hint("No se pudo buscar: ${state.error}")
+
+            state.isEmptyResult -> Hint("Sin resultados. Probá con otro género, otra década o menos filtros.")
+
+            else -> Hint("Cargando lo más popular…")
         }
     }
 }

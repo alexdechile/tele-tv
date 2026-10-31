@@ -100,15 +100,33 @@ fun DetailScreen(
     var selectedSeason by remember(meta.id) { mutableStateOf<Int?>(null) }
 
     val seasons = detail?.seasons.orEmpty()
+    val showSeasons = meta.isSeries && seasons.isNotEmpty() && selectedEpisode == null
+
+    // Fuentes: el estado se pide acá y no dentro de la lista para poder poner
+    // cada tarjeta como ítem de un único `LazyColumn`. Con una lista anidada el
+    // detalle se medía con altura infinita y las fuentes se cortaban.
+    val streamsId = selectedEpisode?.id ?: meta.id
+    val streamsState by produceState<StreamsState?>(initialValue = null, meta.type, streamsId, showSeasons) {
+        if (showSeasons) return@produceState
+        value = StreamsState.Loading
+        value = try {
+            val streams = addons.streams(meta.type, streamsId)
+            if (streams.isEmpty()) StreamsState.Empty else StreamsState.Content(streams)
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (error: Exception) {
+            StreamsState.Error(error.message ?: "Error al buscar fuentes")
+        }
+    }
 
     Surface(modifier = modifier.fillMaxSize()) {
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(48.dp),
-            horizontalArrangement = Arrangement.spacedBy(36.dp)
+                .padding(horizontal = 36.dp, vertical = 28.dp),
+            horizontalArrangement = Arrangement.spacedBy(28.dp)
         ) {
-            Box(modifier = Modifier.width(240.dp).fillMaxHeight()) {
+            Box(modifier = Modifier.width(220.dp).fillMaxHeight()) {
                 AsyncImage(
                     model = meta.poster,
                     contentDescription = meta.name,
@@ -124,7 +142,7 @@ fun DetailScreen(
                     color = MaterialTheme.colorScheme.onSurface
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
                     text = metaLine(meta, detail),
@@ -133,72 +151,74 @@ fun DetailScreen(
                 )
 
                 detail?.genres?.takeIf { it.isNotEmpty() }?.let { genres ->
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = genres.joinToString(" · "),
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                (meta.description ?: enriched?.overview)?.let { description ->
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 3,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                enriched?.takeIf { it.hasContent }?.let { info ->
-                    Spacer(modifier = Modifier.height(12.dp))
-                    WikipediaCard(info)
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // La sinopsis va corta y fija: el espacio vertical de una TV es
+                // el recurso escaso. Lo que se corta se lee completo abajo, en
+                // la lista desplazable.
+                (meta.description ?: enriched?.overview)?.let { description ->
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                    when {
-                        meta.isSeries && seasons.isNotEmpty() && selectedEpisode == null -> SeasonBrowser(
-                            seasons = seasons,
-                            selectedSeason = selectedSeason ?: seasons.firstOrNull { it.number > 0 }?.number,
-                            onSeasonSelected = { selectedSeason = it },
-                            onEpisodeSelected = { selectedEpisode = it }
-                        )
-
-                        else -> Column(modifier = Modifier.fillMaxSize()) {
-                            selectedEpisode?.let { episode ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                                ) {
-                                    Pill(text = "← Episodios") { selectedEpisode = null }
-                                    Text(
-                                        text = "${episode.code} · ${episode.name.orEmpty()}",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(12.dp))
-                            }
-
-                            StreamsSection(
-                                addons = addons,
-                                type = meta.type,
-                                id = selectedEpisode?.id ?: meta.id,
-                                onPlay = { stream ->
-                                    onPlay(stream, selectedEpisode?.let { "${it.code} · ${it.name}" })
-                                },
-                                modifier = Modifier.weight(1f)
+                if (showSeasons) {
+                    // Serie sin episodio elegido: primero la ficha cultural
+                    // (compacta) y después el navegador de temporadas.
+                    enriched?.takeIf { it.hasContent }?.let { info ->
+                        WikipediaCard(info, biographyLines = 1)
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+                    SeasonBrowser(
+                        seasons = seasons,
+                        selectedSeason = selectedSeason ?: seasons.firstOrNull { it.number > 0 }?.number,
+                        onSeasonSelected = { selectedSeason = it },
+                        onEpisodeSelected = { selectedEpisode = it },
+                        modifier = Modifier.fillMaxWidth().weight(1f)
+                    )
+                } else {
+                    selectedEpisode?.let { episode ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Pill(text = "← Episodios") { selectedEpisode = null }
+                            Text(
+                                text = "${episode.code} · ${episode.name.orEmpty()}",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
+                        Spacer(modifier = Modifier.height(10.dp))
                     }
+
+                    StreamsList(
+                        state = streamsState,
+                        onPlay = { stream ->
+                            onPlay(stream, selectedEpisode?.let { "${it.code} · ${it.name}" })
+                        },
+                        header = enriched?.takeIf { it.hasContent },
+                        modifier = Modifier.fillMaxWidth().weight(1f)
+                    )
                 }
             }
         }
@@ -211,10 +231,14 @@ fun DetailScreen(
  * Todo es texto plano ya limpiado en `:data`: no hay HTML, ni WebView, ni
  * enlaces clicables. Tampoco agrega botones, así que la navegación con el
  * control remoto sigue exactamente igual que antes de esta sección.
+ *
+ * Las líneas son deliberadamente cortas: en una TV de 540 dp de alto cada línea
+ * de más empuja las fuentes fuera de la pantalla (ese fue el bug: la ficha se
+ * quedaba con el espacio y las fuentes aparecían cortadas al fondo).
  */
 @Composable
-private fun WikipediaCard(info: EnrichedInfo) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+private fun WikipediaCard(info: EnrichedInfo, biographyLines: Int = 2) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         info.creditLine().takeIf { it.isNotBlank() }?.let { line ->
             Text(
                 text = line,
@@ -228,19 +252,19 @@ private fun WikipediaCard(info: EnrichedInfo) {
         if (info.crew.isNotEmpty()) {
             Text(
                 text = "${info.crewLabel}: ${info.crewLine()}",
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
 
-        info.biography?.let { biography ->
+        info.biography?.takeIf { biographyLines > 0 }?.let { biography ->
             Text(
                 text = biography,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 3,
+                maxLines = biographyLines,
                 overflow = TextOverflow.Ellipsis
             )
         }
@@ -250,7 +274,7 @@ private fun WikipediaCard(info: EnrichedInfo) {
                 text = "Reparto: ${info.castLine()}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
@@ -292,11 +316,12 @@ private fun SeasonBrowser(
     seasons: List<Season>,
     selectedSeason: Int?,
     onSeasonSelected: (Int) -> Unit,
-    onEpisodeSelected: (Episode) -> Unit
+    onEpisodeSelected: (Episode) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val current = seasons.firstOrNull { it.number == selectedSeason } ?: seasons.first()
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = modifier.fillMaxWidth()) {
         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             items(seasons.size) { index ->
                 val season = seasons[index]
@@ -387,69 +412,63 @@ private fun Pill(text: String, onClick: () -> Unit) {
 // Fuentes
 // -------------------------------------------------------------------------
 
-@Composable
-private fun StreamsSection(
-    addons: AddonRepository,
-    type: String,
-    id: String,
-    onPlay: (StreamSource) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val state by produceState<StreamsState>(initialValue = StreamsState.Loading, key1 = type, key2 = id) {
-        value = try {
-            val streams = addons.streams(type, id)
-            if (streams.isEmpty()) StreamsState.Empty else StreamsState.Content(streams)
-        } catch (cancellation: CancellationException) {
-            throw cancellation
-        } catch (error: Exception) {
-            StreamsState.Error(error.message ?: "Error al buscar fuentes")
-        }
-    }
-
-    StreamsList(state = state, onPlay = onPlay, modifier = modifier)
-}
-
+/**
+ * Lista desplazable de fuentes.
+ *
+ * La ficha cultural entra como primer ítem de **esta misma** lista: así se va
+ * para arriba al bajar a las fuentes en vez de robarle el alto fijo a la
+ * pantalla. Con el control remoto se baja tarjeta por tarjeta y la lista se
+ * desplaza sola.
+ */
 @Composable
 private fun StreamsList(
-    state: StreamsState,
+    state: StreamsState?,
     onPlay: (StreamSource) -> Unit,
+    header: EnrichedInfo?,
     modifier: Modifier = Modifier
 ) {
-    when (state) {
-        StreamsState.Loading -> Box(modifier = modifier) {
-            Text(
-                text = "Buscando fuentes en los addons…",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+    LazyColumn(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        header?.let { info ->
+            item(key = "ficha") {
+                Column {
+                    WikipediaCard(info)
+                    Spacer(modifier = Modifier.height(2.dp))
+                }
+            }
         }
 
-        StreamsState.Empty -> Box(modifier = modifier) {
-            Text(
-                text = "Ningún addon devolvió fuentes para este título.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        when (state) {
+            null, StreamsState.Loading -> item(key = "estado") {
+                Hint("Buscando fuentes en los addons…")
+            }
 
-        is StreamsState.Error -> Box(modifier = modifier) {
-            Text(
-                text = "Error al buscar fuentes: ${state.message}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+            StreamsState.Empty -> item(key = "estado") {
+                Hint("Ningún addon devolvió fuentes para este título.")
+            }
 
-        is StreamsState.Content -> LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = modifier.fillMaxWidth()
-        ) {
-            items(state.streams.size) { index ->
+            is StreamsState.Error -> item(key = "estado") {
+                Hint("Error al buscar fuentes: ${state.message}")
+            }
+
+            is StreamsState.Content -> items(state.streams.size, key = { "fuente-$it" }) { index ->
                 val stream = state.streams[index]
                 StreamCard(stream = stream, onClick = { onPlay(stream) })
             }
         }
     }
+}
+
+@Composable
+private fun Hint(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(vertical = 4.dp)
+    )
 }
 
 @Composable
