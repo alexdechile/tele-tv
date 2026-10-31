@@ -23,6 +23,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -430,15 +432,30 @@ private fun StreamsList(
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
+    val firstCardRequester = remember { FocusRequester() }
+    val content = state as? StreamsState.Content
+    val firstStream = content?.streams?.firstOrNull()
 
     // La ficha cultural llega después que las fuentes. Al insertarse como primer
     // ítem, la lista se queda anclada al ítem que ya tenía el foco y la ficha
     // termina ARRIBA del área visible: en pantalla se veía un recuadro cortado
     // en el borde (`el box que se escapa`). Si el usuario todavía no se movió,
     // se vuelve al tope para que la ficha se vea.
-    LaunchedEffect(header != null, state is StreamsState.Content) {
+    LaunchedEffect(header != null, content != null) {
         if (header != null && listState.firstVisibleItemIndex <= 1) {
             listState.scrollToItem(0)
+        }
+    }
+
+    // Las fuentes llegan por red, después del primer dibujo. Si aparecen cuando
+    // ya no queda nada enfocado, la pantalla se ve completa pero el control
+    // remoto no hace nada hasta apretar una flecha. Se enfoca la primera
+    // tarjeta una sola vez, cuando la lista aparece.
+    var focusGiven by remember(firstStream) { mutableStateOf(false) }
+    LaunchedEffect(firstStream) {
+        if (firstStream != null && !focusGiven) {
+            focusGiven = true
+            runCatching { firstCardRequester.requestFocus() }
         }
     }
 
@@ -471,7 +488,11 @@ private fun StreamsList(
 
             is StreamsState.Content -> items(state.streams.size, key = { "fuente-$it" }) { index ->
                 val stream = state.streams[index]
-                StreamCard(stream = stream, onClick = { onPlay(stream) })
+                StreamCard(
+                    stream = stream,
+                    onClick = { onPlay(stream) },
+                    focusRequester = if (index == 0) firstCardRequester else null
+                )
             }
         }
     }
@@ -488,12 +509,17 @@ private fun Hint(text: String) {
 }
 
 @Composable
-private fun StreamCard(stream: StreamSource, onClick: () -> Unit) {
+private fun StreamCard(
+    stream: StreamSource,
+    onClick: () -> Unit,
+    focusRequester: FocusRequester? = null
+) {
     Card(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
             .height(84.dp)
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
     ) {
         Row(
             modifier = Modifier
