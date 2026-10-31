@@ -1,15 +1,34 @@
 # Tele TV - Memoria y Estado del Proyecto
 
 ## Estado Actual de la Sesión (2026-10-30, noche)
-- **Últimos commits:** `c4aee2b` (foco de la primera fuente), `5a82340` (la ficha no se escapa),
-  `1ea0fd0` (buscador y detalle), `0eaeef9` (inicio del archivo primero), `b69f505` (ficha cultural).
-- **Estado del TV Box:** MECOOL KM6 conectado y **verificado en dispositivo**. Instalado `c4aee2b`.
+- **Últimos commits:** `d4b7807` (sinopsis al desplegar la ficha), `c90ecf5` (botón de ficha + género Música),
+  `c4aee2b` (foco de la primera fuente), `5a82340` (la ficha no se escapa), `1ea0fd0` (buscador y detalle),
+  `0eaeef9` (inicio del archivo primero).
+- **Estado del TV Box:** MECOOL KM6 conectado y **verificado en dispositivo**. Instalado `d4b7807`.
 - **Cómo encontrarlo:** `scripts/tvbox.sh` escanea la subred por el puerto 5555 y confirma el modelo KM6.
   El equipo tiene **dos interfaces activas**: Wi-Fi `192.168.1.94` y cable `192.168.1.128`; la IP
   depende de cuál esté en uso y cambia por DHCP. Reservar la IP en el router para que no se pierda.
 - **Verificado en el KM6 (no solo en CI):** la ficha cultural sale con datos reales (director,
   bio, reparto, productora, país, idioma, atribución CC BY-SA) y el video **arranca a los 26 s**
   con la caché vacía, reproduciendo sin barras ni recortes.
+
+## Música en el buscador (2026-10-30)
+
+- **Lo que sí hay:** Cinemeta acepta `genre=Music` y `genre=Musical` **aunque no los anuncie en su
+  manifest** (`/catalog/movie/top/genre=Music.json` → 50 títulos: Whiplash, Coco, La La Land,
+  The Muppet Show…). Como `AddonRepository.genres()` armaba la lista solo desde el manifest, el
+  género no aparecía nunca. Se agregó `UNLISTED_GENRES = listOf("Music", "Musical")` y la etiqueta
+  en español ya existía en `GENRE_ES` ("Música"). Verificado en el KM6: filtro "Género: Música" →
+  Whiplash abre con fuentes y Coco con 417 seeds.
+- **Lo que NO hay (probado, no supuesto):** videoclips de YouTube. Se midieron Piped e Invidious
+  el 2026-10-30: `api.piped.private.coffee` busca bien (19 ítems) pero `/streams/{id}` responde
+  **500**; `pipedapi.adminforge.de` 301, `drgns.space` 000, `leptons.xyz` y `lunar.icu` 502,
+  `ducks.party` 500; `inv.nadeko.net` 403, `nerdvpn.de` 401, `yewtu.be` devuelve HTML (API
+  cerrada). O sea: **hoy no hay forma estable de extraer el video de YouTube** sin API key oficial.
+  Si se quiere video-clips de verdad, el camino es YouTube Data API + `yt-dlp`/extractor propio, o
+  aceptar que la búsqueda musical sea de películas/conciertos del catálogo.
+- **Ojo con el orden de la lista de géneros:** `genres()` devuelve los géneros crudos en inglés y
+  la UI los traduce; "Música" queda entre "Terror" y "Musical" en la fila del panel.
 
 ## Layout de búsqueda y detalle (2026-10-30, noche)
 
@@ -157,6 +176,14 @@ una pantalla de 540 dp de alto se llena con muy poco. De ahí salieron los tres 
 - [ ] Si la primera pieza no llega en 60 s (`FIRST_PIECE_TIMEOUT_MS`) igual se levanta el
       servidor y la UI sigue diciendo "Cargando el video…". Con la prioridad nueva casi no
       pasa; si un torrent sin seeds se cuelga, falta un estado de error explícito.
+- [ ] **Videoclips de música (YouTube):** hoy imposible con Piped/Invidious (ver sección "Música
+      en el buscador"). Si Alex los quiere de verdad hay que decidir entre YouTube Data API (key
+      propia, cuota diaria) o un extractor local (`yt-dlp` en el homelab sirviendo el archivo por
+      HTTP al KM6). Lo segundo se lleva bien con el modelo actual: el player ya reproduce una URL
+      HTTP cualquiera.
+- [ ] La ficha cultural en **series** sigue sin botón de desplegar (va compacta arriba del
+      navegador de temporadas para no robarle alto a los episodios). Si molesta, el mismo patrón
+      de `wikiExpanded` se puede aplicar ahí.
 
 ## Historial anterior
 

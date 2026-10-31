@@ -1,6 +1,10 @@
 # Tele TV - Bitácora de Proyecto
 
 ## Último Realizado
+- **Ficha cultural desplegable y género Música en el buscador:**
+  - La ficha del detalle sigue entrando corta (para no empujar las fuentes), pero ahora tiene el botón **"Ver ficha completa"**: despliega la biografía entera, el reparto completo y una **sinopsis en español** (la de arriba, de Cinemeta, viene en inglés). Se vuelve a cerrar con "Ocultar ficha cultural".
+  - **Género Música:** el buscador ahora ofrece **Música** (y **Musical**) en el filtro de género, y devuelve 50 títulos: biopics, películas de conciertos y musicales (Whiplash, Coco, La La Land, Michael, The Muppet Show…). Los que tienen seeds se reproducen igual que todo lo demás.
+  - Cinemeta servía esos géneros pero **no los anunciaba** en su manifest; por eso nunca aparecían. Se agregaron a mano, comprobados contra la API.
 - **Pantalla de búsqueda y de detalle arregladas (probadas en el TV Box):**
   - **Buscador:** los resultados ahora se ven aunque el teclado esté abierto y se bajan con el D-pad. Antes la lista de resultados no se dibujaba nunca si no había filtros (el encabezado decía "42 resultados" y abajo no había nada), el teclado ocupaba media pantalla y el control remoto no tenía a dónde ir.
   - El teclado es más chico, los paneles de género/año/nota ahora son una sola fila que se corre de costado (antes se envolvían y crecían a media pantalla) y las tarjetas de resultado son más chicas, así que siempre queda una fila entera a la vista mientras se escribe.
