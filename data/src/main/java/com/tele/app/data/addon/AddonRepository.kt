@@ -135,10 +135,13 @@ class AddonRepository(
      *
      * Salen del manifest (no de una lista fija): si mañana se agrega otro addon
      * con sus propios géneros, el buscador los muestra sin tocar código.
+     *
+     * Más [UNLISTED_GENRES]: el catálogo de Cinemeta acepta algunos géneros que
+     * **no anuncia** en su manifest.
      */
     suspend fun genres(types: Set<MediaType> = MediaType.all()): List<String> = coroutineScope {
         val wanted = types.map { it.apiType }.toSet()
-        addonUrls
+        val fromManifests = addonUrls
             .map { addonUrl -> async { manifest(addonUrl) } }
             .awaitAll()
             .filterNotNull()
@@ -147,8 +150,8 @@ class AddonRepository(
                     .filter { it.type in wanted }
                     .flatMap { it.genres }
             }
-            .distinct()
-            .sorted()
+
+        (fromManifests + UNLISTED_GENRES).distinct().sorted()
     }
 
     // ---------------------------------------------------------------------
@@ -315,6 +318,16 @@ class AddonRepository(
         const val EXTRA_SKIP = "skip"
         const val EXTRA_SEARCH = "search"
         const val EXTRA_GENRE = "genre"
+
+        /**
+         * Géneros que el catálogo sí sirve pero no publica en el manifest.
+         *
+         * Comprobado contra la API real (`/catalog/movie/top/genre=Music.json` y
+         * `genre=Musical.json`): los dos devuelven 50 títulos. Sin esto el
+         * buscador nunca ofrecía "Música" y no había forma de pedir videos de
+         * música, aunque Cinemeta los tenga.
+         */
+        val UNLISTED_GENRES = listOf("Music", "Musical")
 
         /** El catálogo "Popular" de Cinemeta; es el que pagina y acepta búsqueda. */
         const val POPULAR_CATALOG = "top"

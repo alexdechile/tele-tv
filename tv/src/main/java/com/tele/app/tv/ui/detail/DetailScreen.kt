@@ -102,6 +102,7 @@ fun DetailScreen(
 
     var selectedEpisode by remember(meta.id) { mutableStateOf<Episode?>(null) }
     var selectedSeason by remember(meta.id) { mutableStateOf<Int?>(null) }
+    var wikiExpanded by remember(meta.id) { mutableStateOf(false) }
 
     val seasons = detail?.seasons.orEmpty()
     val showSeasons = meta.isSeries && seasons.isNotEmpty() && selectedEpisode == null
@@ -221,6 +222,8 @@ fun DetailScreen(
                             onPlay(stream, selectedEpisode?.let { "${it.code} · ${it.name}" })
                         },
                         header = enriched?.takeIf { it.hasContent },
+                        wikiExpanded = wikiExpanded,
+                        onToggleWiki = { wikiExpanded = !wikiExpanded },
                         modifier = Modifier.fillMaxWidth().weight(1f)
                     )
                 }
@@ -241,7 +244,7 @@ fun DetailScreen(
  * quedaba con el espacio y las fuentes aparecían cortadas al fondo).
  */
 @Composable
-private fun WikipediaCard(info: EnrichedInfo, biographyLines: Int = 2) {
+private fun WikipediaCard(info: EnrichedInfo, biographyLines: Int = 2, castLines: Int = 1) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         info.creditLine().takeIf { it.isNotBlank() }?.let { line ->
             Text(
@@ -278,7 +281,7 @@ private fun WikipediaCard(info: EnrichedInfo, biographyLines: Int = 2) {
                 text = "Reparto: ${info.castLine()}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
+                maxLines = castLines,
                 overflow = TextOverflow.Ellipsis
             )
         }
@@ -429,6 +432,8 @@ private fun StreamsList(
     state: StreamsState?,
     onPlay: (StreamSource) -> Unit,
     header: EnrichedInfo?,
+    wikiExpanded: Boolean,
+    onToggleWiki: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
@@ -467,8 +472,16 @@ private fun StreamsList(
         header?.let { info ->
             item(key = "ficha") {
                 Column {
-                    WikipediaCard(info)
-                    Spacer(modifier = Modifier.height(2.dp))
+                    WikipediaCard(
+                        info = info,
+                        biographyLines = if (wikiExpanded) 12 else 2,
+                        castLines = if (wikiExpanded) 3 else 1
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Pill(
+                        text = if (wikiExpanded) "Ocultar ficha cultural" else "Ver ficha completa",
+                        onClick = onToggleWiki
+                    )
                 }
             }
         }
