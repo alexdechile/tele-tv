@@ -22,14 +22,36 @@ class TorrentEngineSettingsTest {
     }
 
     @Test
-    fun `hay tope de subida y la bajada queda libre`() {
+    fun `por defecto no se sube nada y la bajada queda libre`() {
         val settings = TorrentEngineSettings()
 
+        assertEquals(
+            "la TV no reparte el material de nadie",
+            0,
+            settings.uploadRateLimitKbps
+        )
+        assertEquals(
+            "0 en libtorrent es SIN tope, asi que no se puede mandar 0",
+            TorrentEngineSettings.NO_UPLOAD_BYTES_PER_SECOND,
+            settings.uploadRateLimitBytesPerSecond
+        )
         assertTrue(
-            "la subida necesita un tope para no comerse el ancho de banda del video",
-            settings.uploadRateLimitKbps > 0
+            "el valor enviado tiene que ser bajo pero distinto de cero",
+            settings.uploadRateLimitBytesPerSecond in 1..16
         )
         assertEquals("la bajada no se limita", 0, settings.downloadRateLimitKbps)
+    }
+
+    @Test
+    fun `si alguien quiere sembrar, el tope se respeta`() {
+        val settings = TorrentEngineSettings(uploadRateLimitKbps = 200)
+
+        assertEquals(200 * 1024, settings.uploadRateLimitBytesPerSecond)
+    }
+
+    @Test
+    fun `el DHT viene apagado`() {
+        assertFalse("sin DHT se anuncia a menos gente", TorrentEngineSettings().enableDht)
     }
 
     @Test

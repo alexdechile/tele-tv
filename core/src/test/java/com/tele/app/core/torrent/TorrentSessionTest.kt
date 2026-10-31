@@ -82,12 +82,17 @@ class TorrentSessionTest {
                 "LSD debe quedar apagado en la sesion real",
                 applied.getBoolean(settings_pack.bool_types.enable_lsd.swigValue())
             )
+            assertFalse(
+                "el DHT debe quedar apagado en la sesion real",
+                applied.getBoolean(settings_pack.bool_types.enable_dht.swigValue())
+            )
             assertEquals(
                 settings.listenInterfaces,
                 applied.getString(settings_pack.string_types.listen_interfaces.swigValue())
             )
             assertEquals(
-                settings.uploadRateLimitKbps * 1024,
+                "sin tope (0) libtorrent sembraria sin limite: tiene que llegar 1 B/s",
+                TorrentEngineSettings.NO_UPLOAD_BYTES_PER_SECOND,
                 applied.getInteger(settings_pack.int_types.upload_rate_limit.swigValue())
             )
         } finally {
