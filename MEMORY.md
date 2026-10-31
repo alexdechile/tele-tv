@@ -90,6 +90,49 @@ una pantalla de 540 dp de alto se llena con muy poco. De ahí salieron los tres 
 - **Pendiente:** exponer el proxy SOCKS5 (`TorrentEngineSettings.proxy`) en ajustes (M5) y decidir
   si se quiere una opción de "no escuchar" para quien use VPN.
 
+## El material no se queda en la TV (`6277deb`, verificado en el KM6)
+
+**Pedido:** "mi interés mayor es no almacenar videos en el tvbox, se ve y se pierde totalmente".
+
+- **Antes:** cada reproducción bajaba al mismo `cacheDir/torrents` y **nada lo borraba**. Medido en
+  el KM6 antes de este cambio: **805 MB** acumulados (un `.mkv` de 781 MB de la noche anterior,
+  más dos carpetas de releases). Solo desaparecía desinstalando.
+- **Ahora:**
+  - Cada reproducción usa su propio `cacheDir/torrents/session-<hash>-<ts>/` (libtorrent acepta
+    `save_path` por torrent), así el borrado es quirúrgico.
+  - `TorrentEngine.stop()` saca el `TorrentHandle` de la sesión **y borra el directorio** en un
+    hilo aparte con 8 reintentos × 250 ms (libtorrent tarda un instante en soltar el archivo).
+    También se borra en los caminos de error: el `stop()` va en un `finally` del flujo.
+  - `TeleTvApp.onCreate()` barre `cacheDir/torrents` al arrancar (hilo aparte): cubre el caso de
+    que el proceso muera a mitad de un video. Verificado: dejé 320 KB de basura a mano y el
+    arranque la borró.
+  - Si el borrado falla igual, `onCleanupProblem` lo deja en logcat con la etiqueta `TeleTvCache`.
+- **Medido en el KM6 con el build de CI:**
+  - reproducción 1: 121 MB en `cache/torrents` → salir con BACK → **0**, caché total 424 KB.
+  - reproducción 2 (después del `shutdown()`): 146 MB → salir → **0**. O sea, cerrar la sesión no
+    rompe la siguiente reproducción.
+  - reproducción 3: 24 MB → salir → **0**.
+  - `ss -tuln`: durante la reproducción hay `udp/tcp 0.0.0.0:6881` y `127.0.0.1:<puerto>` (el
+    servidor HTTP); después de salir **desaparecen**. El `udp 127.0.0.1:35857` que queda **no es
+    de la app**: sigue ahí con `am force-stop`.
+- **Ojo:** si se aprieta HOME mientras se reproduce, la composición sigue viva y el archivo queda
+  hasta volver y salir del reproductor. Es a propósito (no se puede borrar lo que se está viendo).
+- **Lo que el TV box sí guarda:** nada del video. `cacheDir` (424 KB) es la caché de carátulas de
+  Coil; `last-crash.txt` es el último stack trace.
+
+## Ruta del torrent y datos de la app (`6277deb`)
+
+- **Path traversal cerrado:** el nombre de archivo dentro de un torrent lo escribe el enjambre.
+  `TorrentPaths.resolveWithin(sessionDir, ruta)` rechaza rutas absolutas, `..`, segmentos vacíos,
+  `C:` y bytes nulos, y valida con `canonicalFile` (resuelve symlinks) contra el directorio de la
+  sesión. `TorrentEngine` lo usa antes de construir el `HttpStreamServer`; si no pasa, error visible
+  ("El torrent trae una ruta de archivo no permitida").
+- **`allowBackup="false"` + `fullBackupContent="false"`** en el manifest: un `adb backup` ya no
+  saca los datos de la app.
+- **`engine.shutdown()`** al desmontar el reproductor cierra la sesión nativa de libtorrent. Antes,
+  cada visita al player dejaba una sesión viva con su socket 6881 y sus trackers.
+- **Tests:** `TorrentPathsTest` (7 casos, JVM puro, sin nativo) en `:core:test`.
+
 ## Ficha cultural (Wikipedia/Wikidata) — `:data/enrich`
 
 - **Por qué APIs y no scraping:** se usan `wbgetentities`, `list=search` y `rest_v1/page/summary`,
@@ -165,8 +208,12 @@ una pantalla de 540 dp de alto se llena con muy poco. De ahí salieron los tres 
       Ojo: un seek a una zona **no descargada** ahora espera en el servidor local con deadline,
       así que conviene medir cuánto tarda en vez de asumir que es instantáneo.
 - [ ] Selector de subtítulos por idioma con distintos formatos (SRT interno, VTT).
-- [ ] Gestión de caché de videos descargados (`context.cacheDir/torrents`), hoy crece sin límite.
-      Al desinstalar la app se limpia sola (el `uninstall` borra la caché), pero no hay evicción.
+- [x] Gestión de caché de videos descargados — resuelto en `6277deb`: cada reproducción usa su
+      propio `session-<hash>-<ts>/` y se borra al salir (más barrido al arrancar). Medido en el KM6.
+- [ ] Proxy SOCKS5 / "no participar en la red": `TorrentEngineSettings.proxy` existe y libtorrent lo
+      acepta, pero **no está expuesto en la UI**. Ojo con la trampa: un SOCKS5 no transporta UDP, así
+      que DHT (UDP) y trackers UDP seguirían saliendo con la IP real; hay que apagarlos antes de
+      ofrecer la opción como "anónima".
 - [ ] **CI:** el `logcat -d` colgado ya está acotado con `-t`, y el smoke pasa. Queda pendiente
       cachear el keystore debug: cada run firma distinto y `adb install -r` sigue fallando con
       `INSTALL_FAILED_UPDATE_INCOMPATIBLE` (hay que desinstalar antes, y eso borra la caché).
