@@ -1,9 +1,36 @@
 # Tele TV - Memoria y Estado del Proyecto
 
-## Estado Actual de la Sesión (2026-10-30)
-- **Últimos commits:** `a72f8ec` (modo inmersivo), `d4da027` (SDH flag), `dd0b0e9` (tecla X/Menu y subtitulos dinamicos).
-- **Estado del TV Box:** MECOOL KM6 (`192.168.1.94:5555`). Apagado y sin acceso (Alex está fuera); no se puede instalar ni probar en dispositivo.
-- **Pendiente de verificación en TV:** la ficha cultural (Wikidata/Wikipedia) y los ajustes endurecidos del motor solo están probados en CI (tests JVM + nativo de Linux), no en el KM6.
+## Estado Actual de la Sesión (2026-10-30, noche)
+- **Últimos commits:** `0eaeef9` (inicio del archivo primero), `b69f505` (ficha cultural + motor endurecido), `a72f8ec` (modo inmersivo).
+- **Estado del TV Box:** MECOOL KM6 conectado y **verificado en dispositivo**. Instalado `0eaeef9`.
+- **Cómo encontrarlo:** `scripts/tvbox.sh` escanea la subred por el puerto 5555 y confirma el modelo KM6.
+  El equipo tiene **dos interfaces activas**: Wi-Fi `192.168.1.94` y cable `192.168.1.128`; la IP
+  depende de cuál esté en uso y cambia por DHCP. Reservar la IP en el router para que no se pierda.
+- **Verificado en el KM6 (no solo en CI):** la ficha cultural sale con datos reales (director,
+  bio, reparto, productora, país, idioma, atribución CC BY-SA) y el video **arranca a los 26 s**
+  con la caché vacía, reproduciendo sin barras ni recortes.
+
+## Arranque del video: el inicio del archivo bajaba al final (resuelto en `0eaeef9`)
+
+- **Síntoma medido:** con el torrent al 81 % (7 MB/s, 186 peers) la pantalla seguía negra,
+  duración `--:--` y "Audio: esperando pista…". Revisando el archivo en el disco del TV Box
+  byte a byte: pct 0 % y 5 % **en ceros**, del 10 % al 95 % con datos. O sea, faltaba justo el
+  principio.
+- **Prueba contra el servidor local** (por `adb forward`): `Range: bytes=0-1023` mandaba las
+  cabeceras 206 y **0 bytes** (colgado 25 s); `Range: bytes=-1024` respondía en 20 ms.
+- **Causa:** `prepareDownload` marcaba **todas** las piezas del archivo en `TOP_PRIORITY`. Con
+  todas iguales la prioridad no ordena nada y libtorrent reparte por *rarest first*; además nunca
+  se usaba `setPieceDeadline`, que es el mecanismo real de libtorrent para streaming.
+- **Arreglo:** `StreamPriorities` (nuevo) fuerza una ventana de 8 piezas del inicio en
+  `TOP_PRIORITY` **+ deadline 0**, recortada al final del archivo; el archivo elegido pasa a
+  `DEFAULT`; la ventana se reafirma cada segundo mientras se espera la primera pieza; y
+  `TorrentPieces.prioritize` también pone deadline (sirve para los seeks).
+- **Resultado medido:** primer frame a los **26 s** con la caché vacía (antes: más de 5 minutos,
+  casi el 100 % de la descarga). A los 26 s el archivo tenía el 0 % descargado (`ftyp` presente)
+  y del 5 % al 20 % todavía en ceros: el orden quedó invertido, que es lo correcto.
+- **Nota de API:** `libtorrent4j 2.1.0-39` **no** tiene `setSequentialDownload`; lo disponible es
+  `setSequentialRange(first, last)`, `piecePriority` y `setPieceDeadline(piece, ms)`.
+- **Dato curioso, no es bug:** el mp4 de YTS termina en `0x69` repetido (relleno del release).
 
 ## Seguridad del motor de torrents (`TorrentEngineSettings`)
 
@@ -87,23 +114,24 @@
 
 ## Pendiente / en investigación (para la próxima)
 
-- [ ] **El video sigue sin mostrar imagen.** Con `adbfb1c` el estado ya pasa a
-      "Cargando el video… · N% · X MB/s" (o sea ExoPlayer **sí** recibió la URL), pero
-      se queda buffereando: duración `--:--`, "Audio: esperando pista", pantalla negra
-      con el torrent al 25%. Sospecha: ExoPlayer pide el final del MKV (Cues/SeekHead)
-      y `HttpStreamServer` bloquea esperando esa pieza. Prueba pendiente: pedir un
-      rango al final del archivo por `adb forward` y ver si responde o cuelga.
-- [ ] Validar seek con mouse y dpad una vez que haya duración (con el fix debería
-      aparecer al preparar el medio).
+- [x] **El video no mostraba imagen** — resuelto en `0eaeef9`, causa medida en el KM6 (ver
+      sección "Arranque del video" arriba): el inicio del archivo bajaba al final porque todas
+      las piezas estaban en `TOP_PRIORITY` y no se usaba `setPieceDeadline`.
+- [ ] Validar seek con mouse y dpad (la duración ya aparece al preparar el medio: 1:47:07).
+      Ojo: un seek a una zona **no descargada** ahora espera en el servidor local con deadline,
+      así que conviene medir cuánto tarda en vez de asumir que es instantáneo.
 - [ ] Selector de subtítulos por idioma con distintos formatos (SRT interno, VTT).
 - [ ] Gestión de caché de videos descargados (`context.cacheDir/torrents`), hoy crece sin límite.
-- [ ] **CI roto (no del código):** el job `smoke` queda colgado para siempre en el paso
-      `adb logcat -d` (usar `logcat -d -t N`). Además cada run de CI firma el APK con un
-      keystore debug nuevo, así que `adb install -r` falla con
-      `INSTALL_FAILED_UPDATE_INCOMPATIBLE`: hay que cachear el keystore o desinstalar antes.
+      Al desinstalar la app se limpia sola (el `uninstall` borra la caché), pero no hay evicción.
+- [ ] **CI:** el `logcat -d` colgado ya está acotado con `-t`, y el smoke pasa. Queda pendiente
+      cachear el keystore debug: cada run firma distinto y `adb install -r` sigue fallando con
+      `INSTALL_FAILED_UPDATE_INCOMPATIBLE` (hay que desinstalar antes, y eso borra la caché).
 - [ ] Nota de tema: la app usa el esquema **claro** por defecto de tv-material3; para una
       app de video probablemente convenga pasar a esquema oscuro (afecta Main/Detail, no
       solo el player).
+- [ ] Si la primera pieza no llega en 60 s (`FIRST_PIECE_TIMEOUT_MS`) igual se levanta el
+      servidor y la UI sigue diciendo "Cargando el video…". Con la prioridad nueva casi no
+      pasa; si un torrent sin seeds se cuelga, falta un estado de error explícito.
 
 ## Historial anterior
 

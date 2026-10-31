@@ -32,6 +32,12 @@ proguard/
 # Android Captures
 captures/
 
+# Artefactos del CI descargados para instalar en el TV Box
+build-apk/
+
+# Capturas tomadas del TV Box para revisar la interfaz
+data/capturas/
+
 # Keystore files
 *.jks
 *.keystore

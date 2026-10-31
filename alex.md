@@ -1,6 +1,13 @@
 # Tele TV - Bitácora de Proyecto
 
 ## Último Realizado
+- **El video arranca en segundos, no al final de la descarga (probado en el TV Box):**
+  - Antes: la película se veía recién cuando el torrent iba casi al 100 %. Medido: con 81 % descargado la pantalla seguía negra y el archivo todavía **no tenía el principio** (los primeros ~8 % estaban vacíos en el disco del KM6).
+  - Causa: el motor marcaba todas las piezas del archivo con la misma prioridad máxima, así que libtorrent las repartía "como vinieran", y no usaba el plazo (*deadline*) que libtorrent tiene justamente para streaming.
+  - Ahora: el inicio del archivo tiene prioridad máxima **y plazo**, y se vuelve a pedir cada segundo hasta que llega. El resto queda en prioridad normal.
+  - Resultado medido en el KM6 con la caché vacía: primer cuadro a los **26 segundos** (antes: más de 5 minutos). Verificado además que a los 26 s el archivo tenía el principio y el resto vacío: el orden quedó al revés de como estaba, que es lo correcto.
+  - Un seek a una parte no descargada también se pide con plazo, así que ya no se queda colgado esperando piezas lejanas.
+- **Script para no perder el TV Box:** `scripts/tvbox.sh` busca el equipo en la red (el KM6 tiene Wi-Fi y cable a la vez, con IP distinta en cada uno) y confirma que sea el modelo correcto antes de conectar.
 - **Ficha cultural en la pantalla de detalle (Wikidata + Wikipedia):**
   - Al abrir una película o serie, debajo de la sinopsis aparece una ficha con quién la dirigió (o quién la creó, en el caso de las series), una biografía corta del director, el reparto principal, la productora, el país, el idioma y el año.
   - Los datos salen de las APIs oficiales de Wikidata y Wikipedia (texto plano en español), no de scraping de HTML.
