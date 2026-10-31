@@ -120,6 +120,42 @@ una pantalla de 540 dp de alto se llena con muy poco. De ahí salieron los tres 
 - **Lo que el TV box sí guarda:** nada del video. `cacheDir` (424 KB) es la caché de carátulas de
   Coil; `last-crash.txt` es el último stack trace.
 
+## Subida y DHT: no sembrar (pedido de Alex, `a4b3871` → `e10c407`)
+
+**Pedido:** "no me interesa subir archivos para nadie y menos repartirlos si puede tener
+consecuencias para un tercero desprevenido".
+
+Todo lo de abajo está **medido en el KM6**, no supuesto. libtorrent tiene dos trampas acá:
+
+1. `upload_rate_limit = 0` **no** es "no subir": en libtorrent 1.2 el 0 significa **sin tope**,
+   o sea que el motor repartía a todo lo que daba la línea.
+2. `1 B/s` tampoco sirve: el limitador cuenta también los mensajes de control, así que el
+   handshake (68 bytes) tarda un minuto y la app se quedaba en "Obteniendo metadatos del
+   torrent…" hasta el timeout de 60 s.
+
+**Lo que quedó:** `DEFAULT_UPLOAD_RATE_LIMIT_KBPS = 32` y `enable_dht = false`.
+
+| Subida configurada | Resultado medido (The Invite 1080p, 1,97 GB) |
+|---|---|
+| 800 KB/s (original) | 500–700 KB/s de bajada, sembrando de verdad |
+| 0 | sin tope (seguía sembrando) |
+| 1 B/s | nunca llegaron los metadatos |
+| 4 KB/s | metadatos en 3 s, pero bajada ~70 KB/s (37 peers): no alcanza para 1080p |
+| **32 KB/s** | **bajada 0,9–2,1 MB/s, 126 peers, 30–47 KB/s de subida, video reproduce** |
+
+- **DHT apagado funciona:** los metadatos llegan en ~3 s por los 5 trackers que arma
+  `TorrentLinks` (todos UDP). No hizo falta DHT para nada.
+- **El tope de subida no es exacto:** con 32 KB/s configurados se midieron picos de 47 KB/s
+  (libtorrent permite ráfagas). Sirve como "reciprocidad mínima", no como garantía.
+- **El trade-off es real:** BitTorrent es trueque. Sin subida el enjambre chokéa (la corrida de
+  4 KB/s quedó en 70 KB/s). 32 KB/s ≈ 115 MB por hora de reproducción, y solo mientras el video
+  está abierto (el archivo se borra al salir).
+- **Diagnóstico permanente:** logcat con etiqueta `TeleTvTorrent` cada 3 s: estado, peers,
+  descarga y subida. Fue lo que permitió ver el choking en vez de adivinar.
+- **Ojo con CI:** `gh run watch <id> | tail` devuelve el código del `tail`, no el del run. Un
+  build falló por un test (`uploadRateLimitBytesPerSecond < 16 KB`) y el pipe lo mostró como
+  éxito. Usar `gh run watch <id> --exit-status` sin pipe.
+
 ## Ruta del torrent y datos de la app (`6277deb`)
 
 - **Path traversal cerrado:** el nombre de archivo dentro de un torrent lo escribe el enjambre.
