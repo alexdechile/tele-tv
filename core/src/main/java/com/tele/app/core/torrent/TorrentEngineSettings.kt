@@ -20,8 +20,8 @@ import org.libtorrent4j.swig.settings_pack
  *    si algo lo cambia, nadie lo revisa. Acá queda explícito y configurable.
  *  - `upload_rate_limit` viene en `0`, que en libtorrent significa **sin
  *    tope**: el motor repartía el archivo a todo lo que diera la línea. Acá
- *    viene en 0 KB/s, o sea que la app **no sube** (se traduce a 1 B/s, ver
- *    [NO_UPLOAD_BYTES_PER_SECOND]).
+ *    viene en 4 KB/s: no alcanza para repartir una pieza, pero deja pasar el
+ *    protocolo (ver [DEFAULT_UPLOAD_RATE_LIMIT_KBPS]).
  *  - `enable_dht` viene en `true` y publica la consulta en la red DHT. Acá se
  *    apaga: se resuelve por los trackers del magnet y se anuncia menos gente.
  *
@@ -48,10 +48,16 @@ data class TorrentEngineSettings(
      */
     val enableDht: Boolean = false,
     /**
-     * Tope de subida en KB/s. **0 = no subir**: la app no reparte el material
-     * de nadie. Ojo con la trampa: libtorrent interpreta `upload_rate_limit`
-     * en 0 como "sin tope", así que 0 se traduce a [NO_UPLOAD_BYTES_PER_SECOND]
-     * (1 B/s), no se manda el 0 tal cual.
+     * Tope de subida en KB/s. El valor por defecto es tan bajo que la app no
+     * reparte material útil (una pieza de 1 MB tardaría más de dos minutos en
+     * salir, y el video dura minutos), pero deja pasar el protocolo.
+     *
+     * **Por qué no es 0 ni 1 B/s:** `upload_rate_limit = 0` en libtorrent
+     * significa *sin tope* — lo contrario. Y 1 B/s **rompe la conexión**: el
+     * limitador cuenta también los mensajes de control, así que el handshake
+     * (68 bytes) tarda un minuto y los metadatos del magnet nunca llegan. Se
+     * midió en el KM6 (2026-10-31): con 1 B/s la app se quedaba en "Obteniendo
+     * metadatos del torrent…".
      */
     val uploadRateLimitKbps: Int = DEFAULT_UPLOAD_RATE_LIMIT_KBPS,
     /** Tope de bajada en KB/s; 0 = sin tope (lo normal para streaming). */
@@ -67,19 +73,9 @@ data class TorrentEngineSettings(
             "0.0.0.0:$listenPort"
         }
 
-    /**
-     * Bytes por segundo que se permiten subir.
-     *
-     * `uploadRateLimitKbps = 0` significa "no subir", y en bytes por segundo se
-     * expresa con 1 (un byte por segundo): un valor bajo pero distinto de cero,
-     * porque el 0 de libtorrent es "ilimitado".
-     */
+    /** Bytes por segundo que se permiten subir. */
     val uploadRateLimitBytesPerSecond: Int
-        get() = if (uploadRateLimitKbps > 0) {
-            uploadRateLimitKbps * BYTES_PER_KB
-        } else {
-            NO_UPLOAD_BYTES_PER_SECOND
-        }
+        get() = uploadRateLimitKbps.coerceAtLeast(0) * BYTES_PER_KB
 
     /** Traduce estos ajustes al `settings_pack` que entiende libtorrent4j. */
     fun toSettingsPack(): SettingsPack = SettingsPack().apply {
@@ -117,22 +113,17 @@ data class TorrentEngineSettings(
         const val DEFAULT_LISTEN_PORT = 6881
 
         /**
-         * 0 = no subir. Decisión de producto: la TV no reparte el material de
-         * nadie, así que esta app no siembra. Si alguien necesita ratio (tracker
-         * privado), cambia este valor a 200/800.
-         */
-        const val DEFAULT_UPLOAD_RATE_LIMIT_KBPS = 0
-
-        /**
-         * El "cero" que hay que mandarle a libtorrent para **no** subir.
+         * 4 KB/s: la app **no siembra**. Es un tope tan bajo que una pieza de
+         * 1 MB tarda más de dos minutos en salir, pero alcanza para el
+         * handshake y los pedidos de piezas (que son de decenas de bytes).
          *
-         * `upload_rate_limit = 0` en libtorrent significa *sin tope*, justo lo
-         * contrario de lo que parece: con 0 el motor reparte a todo lo que dé la
-         * línea. Con 1 byte por segundo el envío de datos queda efectivamente
-         * cortado (los mensajes de control del protocolo son de decenas de
-         * bytes y no dependen de este tope).
+         * Historial de este número, medido en el KM6 el 2026-10-31:
+         *  - 800 KB/s (valor original): repartía de verdad.
+         *  - 0: libtorrent lo interpreta como **sin tope** (seguía sembrando).
+         *  - 1 B/s: el limitador frena también el handshake y la app se quedaba
+         *    en "Obteniendo metadatos del torrent…".
          */
-        const val NO_UPLOAD_BYTES_PER_SECOND = 1
+        const val DEFAULT_UPLOAD_RATE_LIMIT_KBPS = 4
 
         /** 0 = sin tope; bajar en la TV se quiere lo más rápido posible. */
         const val DEFAULT_DOWNLOAD_RATE_LIMIT_KBPS = 0

@@ -50,6 +50,9 @@ class TorrentEngine(
     /** Se avisa acá si el borrado no pudo completarse (para no fallar en silencio). */
     var onCleanupProblem: ((String) -> Unit)? = null
 
+    /** Trazas del motor (estado y peers mientras se esperan metadatos). */
+    var onDiagnostic: ((String) -> Unit)? = null
+
     private val lock = Any()
 
     private var sessionManager: SessionManager? = null
@@ -313,6 +316,7 @@ class TorrentEngine(
     /** Espera a que libtorrent tenga el `torrent_info` (metadatos listos). */
     private suspend fun awaitTorrent(manager: SessionManager, infoHash: Sha1Hash): TorrentHandle? {
         val deadline = System.currentTimeMillis() + METADATA_TIMEOUT_MS
+        var lastDiagnostic = 0L
         while (System.currentTimeMillis() < deadline) {
             val handle = try {
                 manager.find(infoHash)
@@ -327,6 +331,19 @@ class TorrentEngine(
                     false
                 }
                 if (ready) return handle
+
+                // Diagnóstico: si los metadatos no llegan, esto dice si el
+                // problema son los peers (0) o el anuncio (estado). Sin esto,
+                // "Obteniendo metadatos…" es indistinguible de "tracker caído".
+                val now = System.currentTimeMillis()
+                if (now - lastDiagnostic >= DIAGNOSTIC_INTERVAL_MS) {
+                    lastDiagnostic = now
+                    runCatching { handle.status() }.getOrNull()?.let { status ->
+                        onDiagnostic?.invoke(
+                            "metadatos: estado=${status.state().name} peers=${status.numPeers()}"
+                        )
+                    }
+                }
             }
             delay(POLL_INTERVAL_MS)
         }
@@ -371,6 +388,7 @@ class TorrentEngine(
         const val FIRST_PIECE_TIMEOUT_MS = 60_000L
         const val POLL_INTERVAL_MS = 300L
         const val PROGRESS_INTERVAL_MS = 1_000L
+        const val DIAGNOSTIC_INTERVAL_MS = 3_000L
 
         /** Reintentos de borrado: libtorrent tarda un instante en soltar el archivo. */
         const val DELETE_ATTEMPTS = 8

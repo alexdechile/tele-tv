@@ -22,24 +22,29 @@ class TorrentEngineSettingsTest {
     }
 
     @Test
-    fun `por defecto no se sube nada y la bajada queda libre`() {
+    fun `por defecto no se siembra y la bajada queda libre`() {
         val settings = TorrentEngineSettings()
 
         assertEquals(
             "la TV no reparte el material de nadie",
-            0,
+            4,
             settings.uploadRateLimitKbps
         )
-        assertEquals(
-            "0 en libtorrent es SIN tope, asi que no se puede mandar 0",
-            TorrentEngineSettings.NO_UPLOAD_BYTES_PER_SECOND,
-            settings.uploadRateLimitBytesPerSecond
-        )
+        assertEquals(4 * 1024, settings.uploadRateLimitBytesPerSecond)
         assertTrue(
-            "el valor enviado tiene que ser bajo pero distinto de cero",
-            settings.uploadRateLimitBytesPerSecond in 1..16
+            "el tope tiene que ser tan bajo que ninguna pieza salga completa",
+            settings.uploadRateLimitBytesPerSecond < 16 * 1024
         )
         assertEquals("la bajada no se limita", 0, settings.downloadRateLimitKbps)
+    }
+
+    @Test
+    fun `el tope de subida nunca llega a cero`() {
+        // 0 en libtorrent = SIN tope (seguiria sembrando); y 1 B/s rompe el
+        // handshake: por eso el default no puede ser ni 0 ni "casi 0".
+        val settings = TorrentEngineSettings(uploadRateLimitKbps = 0)
+        assertEquals(0, settings.uploadRateLimitBytesPerSecond)
+        assertTrue("el default real es 4 KB/s", TorrentEngineSettings().uploadRateLimitBytesPerSecond > 1024)
     }
 
     @Test

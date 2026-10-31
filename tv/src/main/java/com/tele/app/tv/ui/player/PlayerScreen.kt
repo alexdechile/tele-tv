@@ -88,6 +88,8 @@ import java.util.Locale
 private const val AUDIO_LOG_TAG = "TeleTvAudio"
 /** Borrado del material bajado (se ve el video y se va de la TV). */
 private const val CACHE_LOG_TAG = "TeleTvCache"
+/** Estado del motor mientras resuelve metadatos / descarga. */
+private const val TORRENT_LOG_TAG = "TeleTvTorrent"
 /** Cuánto salta el seek al apretar izquierda/derecha en el control remoto. */
 private const val SEEK_STEP_MS = 10_000L
 
@@ -214,6 +216,9 @@ fun PlayerScreen(
             // se puede completar, queda al menos rastro en logcat y la app lo
             // vuelve a intentar en el siguiente arranque.
             onCleanupProblem = { message -> Log.w(CACHE_LOG_TAG, message) }
+            // Con DHT apagado, los metadatos dependen de los trackers del
+            // magnet: si algo se cuelga, "estado/peers" lo dice en logcat.
+            onDiagnostic = { message -> Log.d(TORRENT_LOG_TAG, message) }
         }
     }
     val viewModel = remember(engine) { TorrentStreamViewModel(engine) }
