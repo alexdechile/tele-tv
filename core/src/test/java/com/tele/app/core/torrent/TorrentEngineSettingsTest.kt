@@ -27,10 +27,10 @@ class TorrentEngineSettingsTest {
 
         assertEquals(
             "la TV no reparte el material de nadie",
-            4,
+            32,
             settings.uploadRateLimitKbps
         )
-        assertEquals(4 * 1024, settings.uploadRateLimitBytesPerSecond)
+        assertEquals(32 * 1024, settings.uploadRateLimitBytesPerSecond)
         assertTrue(
             "el tope tiene que ser tan bajo que ninguna pieza salga completa",
             settings.uploadRateLimitBytesPerSecond < 16 * 1024
@@ -44,7 +44,7 @@ class TorrentEngineSettingsTest {
         // handshake: por eso el default no puede ser ni 0 ni "casi 0".
         val settings = TorrentEngineSettings(uploadRateLimitKbps = 0)
         assertEquals(0, settings.uploadRateLimitBytesPerSecond)
-        assertTrue("el default real es 4 KB/s", TorrentEngineSettings().uploadRateLimitBytesPerSecond > 1024)
+        assertTrue("el default real es 32 KB/s", TorrentEngineSettings().uploadRateLimitBytesPerSecond > 1024)
     }
 
     @Test

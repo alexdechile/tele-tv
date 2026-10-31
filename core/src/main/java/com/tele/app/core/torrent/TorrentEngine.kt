@@ -261,6 +261,9 @@ class TorrentEngine(
     // Interno
     // ---------------------------------------------------------------------
 
+    /** Última traza de tasas emitida (para no escribir logcat en cada tick). */
+    private var lastRateDiagnostic = 0L
+
     /**
      * Borra en segundo plano, con reintentos. Si aun así queda algo, se avisa
      * por [onCleanupProblem] y la app lo barre en el siguiente arranque
@@ -373,12 +376,28 @@ class TorrentEngine(
 
     private fun emitProgress(handle: TorrentHandle): TorrentStreamState.Progress? = try {
         val status = handle.status()
-        TorrentStreamState.Progress(
+        val progress = TorrentStreamState.Progress(
             percent = (status.progress() * 100f).coerceIn(0f, 100f),
             downloadRate = status.downloadRate().toLong(),
             peers = status.numPeers(),
             state = status.state().name
         )
+
+        // Durante la descarga también interesa ver el tráfico de salida: si el
+        // motor no devuelve nada, los peers dejan de darnos piezas ("choking"
+        // recíproco) y el video se arrastra. Medido en el KM6: con subida
+        // cortada, la bajada cayó de ~600 KB/s a ~70 KB/s.
+        val now = System.currentTimeMillis()
+        if (now - lastRateDiagnostic >= DIAGNOSTIC_INTERVAL_MS) {
+            lastRateDiagnostic = now
+            onDiagnostic?.invoke(
+                "descarga: ${status.downloadRate() / 1024} KB/s subida: " +
+                    "${status.uploadRate() / 1024} KB/s peers=${status.numPeers()} " +
+                    "progreso=${(status.progress() * 100).toInt()}% estado=${status.state().name}"
+            )
+        }
+
+        progress
     } catch (error: Exception) {
         null
     }

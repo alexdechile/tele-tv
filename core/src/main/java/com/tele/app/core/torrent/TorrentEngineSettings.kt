@@ -20,7 +20,7 @@ import org.libtorrent4j.swig.settings_pack
  *    si algo lo cambia, nadie lo revisa. Acá queda explícito y configurable.
  *  - `upload_rate_limit` viene en `0`, que en libtorrent significa **sin
  *    tope**: el motor repartía el archivo a todo lo que diera la línea. Acá
- *    viene en 4 KB/s: no alcanza para repartir una pieza, pero deja pasar el
+ *    viene en 32 KB/s: no alcanza para repartir una pieza, pero deja pasar el
  *    protocolo (ver [DEFAULT_UPLOAD_RATE_LIMIT_KBPS]).
  *  - `enable_dht` viene en `true` y publica la consulta en la red DHT. Acá se
  *    apaga: se resuelve por los trackers del magnet y se anuncia menos gente.
@@ -113,17 +113,18 @@ data class TorrentEngineSettings(
         const val DEFAULT_LISTEN_PORT = 6881
 
         /**
-         * 4 KB/s: la app **no siembra**. Es un tope tan bajo que una pieza de
-         * 1 MB tarda más de dos minutos en salir, pero alcanza para el
-         * handshake y los pedidos de piezas (que son de decenas de bytes).
+         * 32 KB/s: la app no siembra de forma útil (32 KB/s ≈ 115 MB por hora
+         * de reproducción, y solo mientras el video está abierto), pero mantiene
+         * la reciprocidad mínima que el protocolo espera.
          *
          * Historial de este número, medido en el KM6 el 2026-10-31:
          *  - 800 KB/s (valor original): repartía de verdad.
          *  - 0: libtorrent lo interpreta como **sin tope** (seguía sembrando).
-         *  - 1 B/s: el limitador frena también el handshake y la app se quedaba
-         *    en "Obteniendo metadatos del torrent…".
+         *  - 1 B/s: rompe el handshake; la app quedaba en "Obteniendo metadatos".
+         *  - 4 KB/s: los metadatos llegan, pero los peers nos chokean y la
+         *    bajada cae a ~70 KB/s (no alcanza para streaming 1080p).
          */
-        const val DEFAULT_UPLOAD_RATE_LIMIT_KBPS = 4
+        const val DEFAULT_UPLOAD_RATE_LIMIT_KBPS = 32
 
         /** 0 = sin tope; bajar en la TV se quiere lo más rápido posible. */
         const val DEFAULT_DOWNLOAD_RATE_LIMIT_KBPS = 0

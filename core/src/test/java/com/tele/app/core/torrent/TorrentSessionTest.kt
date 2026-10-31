@@ -91,7 +91,7 @@ class TorrentSessionTest {
                 applied.getString(settings_pack.string_types.listen_interfaces.swigValue())
             )
             assertEquals(
-                "el tope de subida del motor tiene que ser el del default (4 KB/s)",
+                "el tope de subida del motor tiene que ser el del default (32 KB/s)",
                 TorrentEngineSettings.DEFAULT_UPLOAD_RATE_LIMIT_KBPS * 1024,
                 applied.getInteger(settings_pack.int_types.upload_rate_limit.swigValue())
             )
