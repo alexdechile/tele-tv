@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -427,7 +429,21 @@ private fun StreamsList(
     header: EnrichedInfo?,
     modifier: Modifier = Modifier
 ) {
+    val listState = rememberLazyListState()
+
+    // La ficha cultural llega después que las fuentes. Al insertarse como primer
+    // ítem, la lista se queda anclada al ítem que ya tenía el foco y la ficha
+    // termina ARRIBA del área visible: en pantalla se veía un recuadro cortado
+    // en el borde (`el box que se escapa`). Si el usuario todavía no se movió,
+    // se vuelve al tope para que la ficha se vea.
+    LaunchedEffect(header != null, state is StreamsState.Content) {
+        if (header != null && listState.firstVisibleItemIndex <= 1) {
+            listState.scrollToItem(0)
+        }
+    }
+
     LazyColumn(
+        state = listState,
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
