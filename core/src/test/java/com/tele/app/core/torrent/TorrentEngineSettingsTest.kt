@@ -32,8 +32,12 @@ class TorrentEngineSettingsTest {
         )
         assertEquals(32 * 1024, settings.uploadRateLimitBytesPerSecond)
         assertTrue(
-            "el tope tiene que ser tan bajo que ninguna pieza salga completa",
-            settings.uploadRateLimitBytesPerSecond < 16 * 1024
+            "a 32 KB/s una pieza de 1 MB tarda mas de 30 s: el enjambre no la puede pedir",
+            settings.uploadRateLimitBytesPerSecond <= 32 * 1024
+        )
+        assertTrue(
+            "pero tiene que alcanzar para el handshake (68 bytes) sin demoras",
+            settings.uploadRateLimitBytesPerSecond > 2 * 1024
         )
         assertEquals("la bajada no se limita", 0, settings.downloadRateLimitKbps)
     }
