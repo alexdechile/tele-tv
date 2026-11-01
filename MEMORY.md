@@ -156,6 +156,25 @@ Todo lo de abajo está **medido en el KM6**, no supuesto. libtorrent tiene dos t
   build falló por un test (`uploadRateLimitBytesPerSecond < 16 KB`) y el pipe lo mostró como
   éxito. Usar `gh run watch <id> --exit-status` sin pipe.
 
+## La subida se corta al terminar de bajar (pedido de Alex, 2026-11-01)
+
+**Pedido:** "¿es posible que comparta solo mientras baja el archivo y se desconecte al
+terminar la descarga?" → sí, y quedó implementado (`StreamCompletion` + `TorrentEngine`).
+
+- **Antes:** el torrent vivía hasta que el usuario saliera del reproductor. Con el archivo ya
+  completo seguía en la sesión, anunciándose en los trackers y repartiendo a 32 KB/s.
+- **Señal correcta:** `TorrentHandle.fileProgress()` (bytes **por archivo**) contra el tamaño
+  del archivo elegido. `status.progress()` promedia todo el torrent y con los demás archivos en
+  `Priority.IGNORE` nunca llega a 100 %; `progressWanted()` no existe en libtorrent4j 2.1.0-39
+  (verificado con `javap` sobre el jar).
+- **Acción:** `handle.pause()`. Corta subida, suelta peers y detiene los anuncios, pero conserva
+  el handle (progreso y `stop()` ordenado). **No se rompe la reproducción:** `HttpStreamServer`
+  sirve el archivo desde el disco, no se lo pide a la sesión, así que el seek sigue igual.
+- **Detalle:** la pausa se intenta una sola vez por reproducción (`uploadPaused` en el bucle);
+  si `pause()` falla, se reintenta en la vuelta siguiente.
+- **Tests:** `StreamCompletionTest` (JVM puro) — completo exacto, de más, tamaño 0, archivo
+  elegido vs. los demás, índice fuera de rango y `pause()` que revienta.
+
 ## Ruta del torrent y datos de la app (`6277deb`)
 
 - **Path traversal cerrado:** el nombre de archivo dentro de un torrent lo escribe el enjambre.

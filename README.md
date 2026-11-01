@@ -38,6 +38,9 @@ Verificado en CI (`./gradlew :tv:assembleDebug :core:test`):
 - Mapeo de `fileOffsetInTorrent` (el archivo no empieza en el byte 0 del torrent).
 - `TorrentSessionTest`: carga el nativo real, arranca la sesión y acepta el magnet con los
   mismos flags que usa el motor.
+- `StreamCompletionTest`: la subida se corta cuando el archivo elegido está entero en disco,
+  y no antes. Se mide con los bytes **del archivo** (`fileProgress`), no con el promedio del
+  torrent, que con los demás archivos en `IGNORE` nunca llega a 100 %.
 
 Verificado a mano contra un enjambre real (Big Buck Bunny, sin dispositivo):
 

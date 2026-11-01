@@ -28,6 +28,9 @@ import java.util.concurrent.Executors
  *     IGNORE, así el ancho de banda se concentra en la película.
  *  4. Descarga secuencial sobre el rango de piezas de ese archivo.
  *  5. Se levanta [HttpStreamServer] y se entrega su URL a ExoPlayer.
+ *  6. Cuando el archivo elegido termina de bajar, el torrent se **pausa**: se
+ *     corta la subida (peers y anuncios) y la reproducción sigue desde el disco.
+ *     Al salir del reproductor, [stop] cierra todo y borra la caché.
  *
  * ExoPlayer nunca ve el torrent: recibe `http://127.0.0.1:PORT/stream`.
  */
@@ -202,10 +205,42 @@ class TorrentEngine(
             )
         )
 
+        // El video puede terminar de bajar mientras se sigue viendo. Cuando eso
+        // pasa no hay nada más que pedir: se corta la subida pausando el
+        // torrent, y la reproducción sigue leyendo del disco sin enterarse.
+        var uploadPaused = false
+
         while (currentCoroutineContext().isActive) {
             emitProgress(handle)?.let { emit(it) }
+            if (!uploadPaused) {
+                uploadPaused = pauseIfComplete(handle, fileIndex, fileSize)
+            }
             delay(PROGRESS_INTERVAL_MS)
         }
+    }
+
+    /**
+     * Pausa el torrent cuando el archivo elegido ya está entero en disco.
+     *
+     * Se pausa en vez de `remove()` porque pausar conserva el `TorrentHandle`
+     * (sirve para el progreso y para el cierre ordenado de [stop]) y hace lo
+     * mismo que importa: libtorrent suelta los peers, deja de anunciarse en los
+     * trackers y no sube ni un byte más.
+     */
+    private fun pauseIfComplete(handle: TorrentHandle, fileIndex: Int, fileSize: Long): Boolean {
+        val paused = StreamCompletion.pauseIfComplete(
+            fileIndex = fileIndex,
+            fileSize = fileSize,
+            fileProgress = { runCatching { handle.fileProgress() }.getOrNull() },
+            pause = { handle.pause() }
+        )
+        if (paused) {
+            onDiagnostic?.invoke(
+                "descarga completa: torrent pausado, subida cortada " +
+                    "(${fileSize / (1024 * 1024)} MB en disco)"
+            )
+        }
+        return paused
     }
 
     /**
