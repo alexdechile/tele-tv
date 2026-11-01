@@ -278,3 +278,19 @@ Todo lo de abajo está **medido en el KM6**, no supuesto. libtorrent tiene dos t
    se cambió a `Box` y `PlayerView` a `TextureView`.
 4. **Timeout de red:** se subieron los timeouts de `DefaultHttpDataSource` a 120 s.
 5. **Conflicto con el controlador nativo:** `app:use_controller="false"`.
+
+## Ícono y banner (2026-11-01)
+
+**El botón salía gris y vacío en el launcher del KM6.** No era un problema del launcher: en
+Android TV la grilla de apps dibuja el **banner** (`android:banner`), y Tele no lo declaraba; su
+ícono era un vector suelto.
+
+- Ahora hay ícono cuadrado (lupa ámbar sobre negro + franja de acento) en todas las densidades,
+  versión adaptativa (`mipmap-anydpi-v26`) y **banner 320×180** «Tele TV · Busca y reproduce».
+- Todo se genera con `scripts/generar-iconos.py` (PIL, fuentes Inter en `scripts/fuentes/`):
+  no editar los PNG a mano, se regeneran.
+- Verificado en el KM6: el tile de Tele TV sale con su banner en Apps y la app abre normal.
+  Captura: `docs/captura-apps-launcher.png`.
+- Ojo: el CI firma con un keystore de debug distinto en cada corrida, así que instalar una build
+  nueva exige desinstalar (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`). Tele no guarda datos de usuario
+  (no hay Room ni SharedPreferences), así que no se pierde nada.
