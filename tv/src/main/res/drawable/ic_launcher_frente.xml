@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Frente del ícono adaptativo (API 26+): la lupa ámbar de Tele TV, sin fondo.
+     Las versiones PNG de siempre salen de scripts/generar-iconos.py. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Aro de la lupa -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFC24B"
+        android:strokeWidth="8"
+        android:pathData="M32,46 a18,18 0 1,0 36,0 a18,18 0 1,0 -36,0" />
+
+    <!-- Mango -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFC24B"
+        android:strokeWidth="9"
+        android:strokeLineCap="round"
+        android:pathData="M60,60 L76,76" />
+</vector>
