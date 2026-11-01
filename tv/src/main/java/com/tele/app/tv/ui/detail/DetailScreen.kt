@@ -1,7 +1,9 @@
 package com.tele.app.tv.ui.detail
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -503,15 +505,46 @@ private fun launchStreamingPlatform(context: Context, platform: String) {
 
     val pm = context.packageManager
     for (pkg in packageCandidates) {
-        val launchIntent = pm.getLaunchIntentForPackage(pkg)
+        // En Android TV, getLeanbackLaunchIntentForPackage busca actividades con CATEGORY_LEANBACK_LAUNCHER.
+        // getLaunchIntentForPackage busca solo CATEGORY_LAUNCHER (móviles/tablets).
+        val launchIntent = pm.getLeanbackLaunchIntentForPackage(pkg)
+            ?: pm.getLaunchIntentForPackage(pkg)
+            ?: run {
+                if (isPackageInstalled(pm, pkg)) {
+                    if (pkg == "com.filmin.androidtv") {
+                        Intent().apply {
+                            component = ComponentName("com.filmin.androidtv", "com.filmin.androidtv.MainActivity")
+                        }
+                    } else {
+                        Intent(Intent.ACTION_MAIN).apply {
+                            addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER)
+                            `package` = pkg
+                        }
+                    }
+                } else null
+            }
+
         if (launchIntent != null) {
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(launchIntent)
-            return
+            try {
+                context.startActivity(launchIntent)
+                return
+            } catch (_: Exception) {
+                // Sigue al siguiente candidato si falla el inicio
+            }
         }
     }
 
     Toast.makeText(context, "La app de $platform no está instalada en el TV Box", Toast.LENGTH_SHORT).show()
+}
+
+private fun isPackageInstalled(pm: PackageManager, packageName: String): Boolean {
+    return try {
+        pm.getPackageInfo(packageName, 0)
+        true
+    } catch (_: Exception) {
+        false
+    }
 }
 
 /** "2008 · Serie · ★ 9.5 · 5 temporadas · 49 min" */

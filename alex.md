@@ -1,6 +1,9 @@
 # Tele TV - Bitácora de Proyecto
 
 ## Último Realizado
+- **Corrección de lanzamiento de Filmin en Android TV (Leanback Intent):**
+  - Se corrigió la resolución de intents para apps de Android TV: el método estándar `getLaunchIntentForPackage` busca actividades con `CATEGORY_LAUNCHER` (móviles/tablets) y devolvía null en apps nativas de TV como Filmin (`com.filmin.androidtv`), la cual solo declara `CATEGORY_LEANBACK_LAUNCHER`.
+  - Se actualizó para consultar `getLeanbackLaunchIntentForPackage` con fallback explícito a `com.filmin.androidtv.MainActivity`, garantizando la apertura instantánea de Filmin al presionar el botón.
 - **Integración JustWatch en vivo y lanzamiento directo de la app Filmin en el TV Box:**
   - **Disponibilidad en streaming en tiempo real (JustWatch España):** se integró un cliente anónimo GraphQL contra la API de JustWatch (`https://apis.justwatch.com/graphql`) configurado para España (`ES`). Permite saber con precisión si un título está en el catálogo de suscripción plana de **Filmin** (y otras plataformas como RTVE Play, MUBI, Netflix, etc.) sin necesidad de registrar aplicaciones ni arriesgar cuentas en TMDb.
   - **Lanzamiento directo de Filmin (`[🟢 Ver en Filmin]`):** si la película o serie está en Filmin, el distintivo se convierte en un botón interactivo enfocable con el control remoto. Al presionar `OK` o hacer clic con el ratón apuntador, la app lanza directamente la app de Filmin instalada en el MECOOL KM6 (`com.filmin.androidtv`), permitiendo verla de inmediato en streaming oficial.
