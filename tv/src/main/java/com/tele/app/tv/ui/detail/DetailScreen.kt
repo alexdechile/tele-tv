@@ -1,5 +1,8 @@
 package com.tele.app.tv.ui.detail
 
+import android.content.Context
+import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Card
@@ -73,6 +77,8 @@ fun DetailScreen(
     addons: AddonRepository = AppGraph.addons,
     wiki: WikipediaEnricher = AppGraph.wiki
 ) {
+    val context = LocalContext.current
+
     val detail by produceState<MetaDetail?>(initialValue = null, key1 = meta.type, key2 = meta.id) {
         value = try {
             addons.detail(meta.type, meta.id)
@@ -94,6 +100,7 @@ fun DetailScreen(
             wiki.enrich(
                 metaId = meta.id,
                 type = meta.type,
+                title = meta.name,
                 fallbackYear = detail?.firstYear ?: meta.year
             )
         } catch (cancellation: CancellationException) {
@@ -194,7 +201,8 @@ fun DetailScreen(
                             info = info,
                             detail = detail,
                             biographyLines = 1,
-                            onPersonSelected = onPersonSelected
+                            onPersonSelected = onPersonSelected,
+                            onPlatformClick = { platform -> launchStreamingPlatform(context, platform) }
                         )
                         Spacer(modifier = Modifier.height(10.dp))
                     }
@@ -237,6 +245,7 @@ fun DetailScreen(
                         wikiOverviewLines = if (meta.description != null) 8 else 0,
                         onToggleWiki = { wikiExpanded = !wikiExpanded },
                         onPersonSelected = onPersonSelected,
+                        onPlatformClick = { platform -> launchStreamingPlatform(context, platform) },
                         modifier = Modifier.fillMaxWidth().weight(1f)
                     )
                 }
@@ -261,7 +270,8 @@ private fun WikipediaCard(
     biographyLines: Int = 2,
     castLines: Int = 1,
     overviewLines: Int = 0,
-    onPersonSelected: ((String) -> Unit)? = null
+    onPersonSelected: ((String) -> Unit)? = null,
+    onPlatformClick: ((String) -> Unit)? = null
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         info.creditLine().takeIf { it.isNotBlank() }?.let { line ->
@@ -276,28 +286,22 @@ private fun WikipediaCard(
 
         // Plataformas oficiales (Filmin, MUBI, Netflix...)
         if (info.platforms.isNotEmpty()) {
-            if (expanded) {
-                Text(
-                    text = "Disponible en streaming oficial:",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(info.platforms.size) { index ->
-                        PlatformBadge(name = info.platforms[index])
-                    }
+            Text(
+                text = "Disponible en streaming oficial:",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(info.platforms.size) { index ->
+                    val platform = info.platforms[index]
+                    PlatformChip(
+                        name = platform,
+                        onClick = { onPlatformClick?.invoke(platform) }
+                    )
                 }
-                Spacer(modifier = Modifier.height(4.dp))
-            } else {
-                Text(
-                    text = "🟢 Disponible en: ${info.platforms.joinToString(" · ")}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
             }
+            Spacer(modifier = Modifier.height(4.dp))
         }
 
         // Premios y galardones
@@ -441,38 +445,73 @@ private fun PersonChip(
     }
 }
 
-/** Distintivo visual para servicios de streaming oficiales (Filmin, MUBI, etc.). */
+/** Chip interactivo para abrir una plataforma de streaming oficial (Filmin, etc.). */
 @Composable
-private fun PlatformBadge(name: String) {
-    Box(
-        modifier = Modifier
-            .height(32.dp)
-            .background(
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                shape = RoundedCornerShape(8.dp)
-            )
-            .padding(horizontal = 10.dp),
-        contentAlignment = Alignment.Center
+private fun PlatformChip(
+    name: String,
+    onClick: () -> Unit
+) {
+    val isFilmin = name.contains("Filmin", ignoreCase = true)
+    val icon = when {
+        isFilmin -> "🟢"
+        name.contains("MUBI", ignoreCase = true) -> "🎬"
+        name.contains("Netflix", ignoreCase = true) -> "🍿"
+        name.contains("Apple", ignoreCase = true) -> "🍏"
+        name.contains("Prime", ignoreCase = true) || name.contains("Amazon", ignoreCase = true) -> "📦"
+        name.contains("Disney", ignoreCase = true) -> "✨"
+        name.contains("RTVE", ignoreCase = true) -> "📺"
+        else -> "▶️"
+    }
+    val label = if (isFilmin) "Ver en Filmin" else "Ver en $name"
+
+    Card(
+        onClick = onClick,
+        modifier = Modifier.height(36.dp)
     ) {
         Row(
+            modifier = Modifier
+                .fillMaxHeight()
+                .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            val icon = when {
-                name.contains("Filmin", ignoreCase = true) -> "🟢"
-                name.contains("MUBI", ignoreCase = true) -> "🎬"
-                name.contains("Netflix", ignoreCase = true) -> "🍿"
-                name.contains("Apple", ignoreCase = true) -> "🍏"
-                else -> "📺"
-            }
             Text(text = icon, style = MaterialTheme.typography.labelSmall)
             Text(
-                text = name,
+                text = label,
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1
             )
         }
     }
+}
+
+private fun launchStreamingPlatform(context: Context, platform: String) {
+    val clean = platform.lowercase()
+    val packageCandidates = when {
+        clean.contains("filmin") -> listOf("com.filmin.androidtv", "com.filmin")
+        clean.contains("netflix") -> listOf("com.netflix.ninja")
+        clean.contains("prime") || clean.contains("amazon") -> listOf("com.amazon.amazonvideo.livingroom")
+        clean.contains("disney") -> listOf("com.disney.disneyplus")
+        clean.contains("mubi") -> listOf("com.mubi")
+        clean.contains("rtve") -> listOf("com.rtve.alacarta")
+        clean.contains("movistar") -> listOf("com.movistar.androidtv")
+        clean.contains("apple") -> listOf("com.apple.atve.androidtv.appletv")
+        clean.contains("hbo") || clean.contains("max") -> listOf("com.wbd.stream", "com.hbo.hbonow")
+        else -> emptyList()
+    }
+
+    val pm = context.packageManager
+    for (pkg in packageCandidates) {
+        val launchIntent = pm.getLaunchIntentForPackage(pkg)
+        if (launchIntent != null) {
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(launchIntent)
+            return
+        }
+    }
+
+    Toast.makeText(context, "La app de $platform no está instalada en el TV Box", Toast.LENGTH_SHORT).show()
 }
 
 /** "2008 · Serie · ★ 9.5 · 5 temporadas · 49 min" */
@@ -617,6 +656,7 @@ private fun StreamsList(
     wikiOverviewLines: Int,
     onToggleWiki: () -> Unit,
     onPersonSelected: ((String) -> Unit)?,
+    onPlatformClick: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
@@ -662,7 +702,8 @@ private fun StreamsList(
                         biographyLines = if (wikiExpanded) 12 else 2,
                         castLines = if (wikiExpanded) 3 else 1,
                         overviewLines = if (wikiExpanded) wikiOverviewLines else 0,
-                        onPersonSelected = onPersonSelected
+                        onPersonSelected = onPersonSelected,
+                        onPlatformClick = onPlatformClick
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Pill(

@@ -20,6 +20,28 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!--
+      Visibilidad de paquetes para poder abrir apps de streaming oficiales
+      (Filmin, Netflix, RTVE, etc.) directamente desde la ficha de detalle.
+    -->
+    <queries>
+        <package android:name="com.filmin.androidtv" />
+        <package android:name="com.filmin" />
+        <package android:name="com.netflix.ninja" />
+        <package android:name="com.amazon.amazonvideo.livingroom" />
+        <package android:name="com.disney.disneyplus" />
+        <package android:name="com.mubi" />
+        <package android:name="com.rtve.alacarta" />
+        <package android:name="com.movistar.androidtv" />
+        <package android:name="com.apple.atve.androidtv.appletv" />
+        <package android:name="com.wbd.stream" />
+        <package android:name="com.hbo.hbonow" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+
     <application
         android:name=".TeleTvApp"
         android:allowBackup="false"

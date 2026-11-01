@@ -22,7 +22,8 @@ import kotlinx.coroutines.CancellationException
  * de Cinemeta: el enriquecimiento es opcional por diseño.
  */
 class WikipediaEnricher(
-    private val client: WikiClient = WikiClient()
+    private val client: WikiClient = WikiClient(),
+    private val justWatch: JustWatchClient = JustWatchClient()
 ) {
 
     private val cache = object : LinkedHashMap<String, EnrichedInfo>(CACHE_INITIAL, 0.75f, true) {
@@ -35,13 +36,18 @@ class WikipediaEnricher(
      * [type] es "movie" o "series". Devuelve null si el título no es de IMDb o
      * si Wikipedia no tiene nada útil.
      */
-    suspend fun enrich(metaId: String?, type: String, fallbackYear: Int? = null): EnrichedInfo? {
+    suspend fun enrich(
+        metaId: String?,
+        type: String,
+        title: String? = null,
+        fallbackYear: Int? = null
+    ): EnrichedInfo? {
         val imdbId = WikiParser.imdbId(metaId) ?: return null
 
         synchronized(cache) { cache[imdbId] }?.let { return it }
 
         val info = try {
-            load(imdbId, type, fallbackYear)
+            load(imdbId, type, title, fallbackYear)
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (error: Exception) {
@@ -55,10 +61,33 @@ class WikipediaEnricher(
     /** Cuántas fichas se guardan en memoria (una por título abierto). */
     fun cachedCount(): Int = synchronized(cache) { cache.size }
 
-    private suspend fun load(imdbId: String, type: String, fallbackYear: Int?): EnrichedInfo? {
+    private suspend fun load(
+        imdbId: String,
+        type: String,
+        title: String?,
+        fallbackYear: Int?
+    ): EnrichedInfo? {
+        val jwPlatforms = if (!title.isNullOrBlank()) {
+            try {
+                justWatch.getPlatforms(title = title, imdbId = imdbId)
+            } catch (_: Exception) {
+                emptyList()
+            }
+        } else emptyList()
+
         val entityId = WikiParser.searchEntityId(
             client.getJson(WikiUrls.imdbSearch(imdbId))
-        ) ?: return null
+        )
+        if (entityId == null) {
+            if (jwPlatforms.isNotEmpty()) {
+                return EnrichedInfo(
+                    crewLabel = if (type == WikiParser.TYPE_SERIES) "Creada por" else "Dirección",
+                    platforms = jwPlatforms,
+                    year = fallbackYear
+                )
+            }
+            return null
+        }
 
         val entity = WikiParser.entity(
             client.getJson(WikiUrls.entity(entityId)),
@@ -88,6 +117,7 @@ class WikipediaEnricher(
         val countries = facts.countryIds.mapNotNull { labels[it]?.text }.take(MAX_PLACES)
         val languages = facts.languageIds.mapNotNull { labels[it]?.text }.take(MAX_PLACES)
         val platforms = buildList {
+            addAll(jwPlatforms)
             for (id in facts.platformIds) {
                 val known = WikiParser.KNOWN_PLATFORMS[id]
                 if (known != null) {

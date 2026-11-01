@@ -1,6 +1,10 @@
 # Tele TV - Bitácora de Proyecto
 
 ## Último Realizado
+- **Integración JustWatch en vivo y lanzamiento directo de la app Filmin en el TV Box:**
+  - **Disponibilidad en streaming en tiempo real (JustWatch España):** se integró un cliente anónimo GraphQL contra la API de JustWatch (`https://apis.justwatch.com/graphql`) configurado para España (`ES`). Permite saber con precisión si un título está en el catálogo de suscripción plana de **Filmin** (y otras plataformas como RTVE Play, MUBI, Netflix, etc.) sin necesidad de registrar aplicaciones ni arriesgar cuentas en TMDb.
+  - **Lanzamiento directo de Filmin (`[🟢 Ver en Filmin]`):** si la película o serie está en Filmin, el distintivo se convierte en un botón interactivo enfocable con el control remoto. Al presionar `OK` o hacer clic con el ratón apuntador, la app lanza directamente la app de Filmin instalada en el MECOOL KM6 (`com.filmin.androidtv`), permitiendo verla de inmediato en streaming oficial.
+  - **Visibilidad y soporte de otras apps de streaming:** se agregaron declaraciones `<queries>` en `AndroidManifest.xml` para detección y apertura de apps de streaming en Android 11+ (Filmin, Netflix, RTVE Play, Movistar+, MUBI, etc.).
 - **Soporte de teclado físico en el buscador (teclado de control remoto / air-mouse):**
   - Se implementó escucha directa de eventos de hardware (`onPreviewKeyEvent`) en el buscador: ahora se puede escribir y buscar directamente usando las teclas físicas del ratón apuntador / control remoto (letras, números, espacios y retroceso/borrar) a toda velocidad.
   - **100% privado y sin teclado del sistema:** nunca se invoca el `InputMethodService` ni el teclado virtual de Android, evitando cualquier riesgo de espionaje o keylogger de apps externas o de la ROM del TV Box.
