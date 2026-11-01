@@ -95,13 +95,17 @@ internal object WikiParser {
     /** Títulos con su id de IMDb e indicación de si es serie, extraídos de una respuesta SPARQL. */
     fun sparqlTitles(root: JsonObject?): List<WikiTitle> {
         val bindings = root?.objOrNull("results")?.arrOrNull("bindings") ?: return emptyList()
-        return bindings.elements().mapNotNull { element ->
-            val obj = element.asObjectOrNull() ?: return@mapNotNull null
-            val imdb = obj.objOrNull("imdb")?.strOrNull("value")?.takeIf { IMDB.matches(it) } ?: return@mapNotNull null
+        val titles = mutableListOf<WikiTitle>()
+        for (element in bindings) {
+            if (!element.isJsonObject) continue
+            val obj = element.asJsonObject
+            val imdbObj = obj.objOrNull("imdb") ?: continue
+            val imdb = imdbObj.strOrNull("value")?.takeIf { IMDB.matches(it) } ?: continue
             val wtype = obj.objOrNull("wtype")?.strOrNull("value").orEmpty()
             val isSeries = wtype.endsWith("Q5398426")
-            WikiTitle(imdbId = imdb, isSeries = isSeries)
-        }.distinctBy { it.imdbId }
+            titles.add(WikiTitle(imdbId = imdb, isSeries = isSeries))
+        }
+        return titles.distinctBy { it.imdbId }
     }
 
     // ---------------------------------------------------------------------
