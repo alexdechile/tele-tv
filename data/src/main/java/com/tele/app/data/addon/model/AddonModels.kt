@@ -46,7 +46,8 @@ data class MetaPreview(
     val background: String? = null,
     val releaseInfo: String? = null,
     val description: String? = null,
-    val rating: Double? = null
+    val rating: Double? = null,
+    val country: String? = null
 ) {
     /** Primer año de [releaseInfo] ("2011–2019" → 2011). */
     val year: Int? get() = releaseInfo?.let(::yearOfReleaseInfo)
@@ -110,7 +111,8 @@ data class MetaDetail(
     val seasons: List<Season> = emptyList(),
     val directors: List<String> = emptyList(),
     val cast: List<String> = emptyList(),
-    val awards: String? = null
+    val awards: String? = null,
+    val country: String? = null
 ) {
     /** Año de estreno legible ("2008–2013" → 2008). */
     val firstYear: Int? get() = year?.let(::yearOfReleaseInfo) ?: releaseInfo?.let(::yearOfReleaseInfo)

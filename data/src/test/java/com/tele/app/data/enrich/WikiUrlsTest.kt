@@ -10,9 +10,18 @@ class WikiUrlsTest {
     @Test
     fun `solo se habla con wikimedia`() {
         assertEquals(
-            setOf("www.wikidata.org", "es.wikipedia.org", "en.wikipedia.org"),
+            setOf("www.wikidata.org", "query.wikidata.org", "es.wikipedia.org", "en.wikipedia.org"),
             WikiUrls.allowedHosts
         )
+    }
+
+    @Test
+    fun `sparql por pais arma la url con qid y tipos`() {
+        val url = WikiUrls.countryTitlesSparql("Q298", limit = 20)
+
+        assertTrue(url.startsWith("https://query.wikidata.org/sparql?query="))
+        assertTrue(url.contains("Q298"))
+        assertTrue(url.contains("P345"))
     }
 
     @Test

@@ -1,5 +1,7 @@
 package com.tele.app.data.enrich
 
+import com.tele.app.data.addon.model.Decade
+import com.tele.app.data.addon.model.MediaType
 import java.net.URLEncoder
 
 /**
@@ -24,6 +26,7 @@ object WikiUrls {
     /** Hosts permitidos para cualquier descarga de este módulo. */
     val allowedHosts: Set<String> = setOf(
         "www.wikidata.org",
+        "query.wikidata.org",
         "es.wikipedia.org",
         "en.wikipedia.org"
     )
@@ -52,6 +55,40 @@ object WikiUrls {
     /** URL legible para atribuir la fuente en pantalla. */
     fun pageUrl(lang: String, title: String): String =
         "https://$lang.wikipedia.org/wiki/${encodePath(title)}"
+
+    /**
+     * Consulta SPARQL para obtener las películas y series más notables de un país
+     * ordenadas por relevancia cultural (sitelinks de Wikipedia) y con su ID de IMDb.
+     */
+    fun countryTitlesSparql(
+        countryQid: String,
+        types: Set<MediaType> = MediaType.all(),
+        decade: Decade? = null,
+        limit: Int = 35
+    ): String {
+        val wtypes = when {
+            types.size >= 2 || types.isEmpty() -> "wd:Q11424 wd:Q5398426"
+            types.contains(MediaType.SERIES) -> "wd:Q5398426"
+            else -> "wd:Q11424"
+        }
+
+        val decadeFilter = if (decade != null) {
+            "?item wdt:P577 ?pubDate . FILTER(YEAR(?pubDate) >= ${decade.from} && YEAR(?pubDate) <= ${decade.to})"
+        } else ""
+
+        val sparql = """
+            SELECT ?imdb ?wtype (SAMPLE(?sitelinks) AS ?links) WHERE {
+              VALUES ?wtype { $wtypes }
+              ?item wdt:P31 ?wtype .
+              ?item wdt:P495 wd:$countryQid .
+              ?item wdt:P345 ?imdb .
+              $decadeFilter
+              ?item wikibase:sitelinks ?sitelinks .
+            } GROUP BY ?imdb ?wtype ORDER BY DESC(?links) LIMIT $limit
+        """.trimIndent()
+
+        return "https://query.wikidata.org/sparql?query=${encodeQuery(sparql)}"
+    }
 
     private fun encodeQuery(value: String): String = URLEncoder.encode(value, "UTF-8")
 

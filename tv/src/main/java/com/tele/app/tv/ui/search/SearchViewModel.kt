@@ -105,7 +105,7 @@ class SearchViewModel : ViewModel() {
                 return@launch
             }
 
-            val visible = candidates.take(MAX_RESULTS).map { SearchItem(it) }
+            val visible = candidates.take(MAX_RESULTS).map { SearchItem(meta = it, country = it.country) }
             _state.update { it.copy(loading = false, items = visible, enriching = true) }
 
             if (visible.isEmpty()) {
@@ -136,7 +136,8 @@ class SearchViewModel : ViewModel() {
                     val detail = details[offset]
                     enriched[start + offset] = item.copy(
                         rating = detail?.rating,
-                        seasonCount = detail?.seasonCount
+                        seasonCount = detail?.seasonCount,
+                        country = detail?.country ?: item.meta.country ?: item.country
                     )
                 }
 
@@ -150,10 +151,19 @@ class SearchViewModel : ViewModel() {
 
     /**
      * Filtros que el protocolo no puede hacer y por eso se aplican acá:
-     * nota mínima, temporadas mínimas y orden por nota.
+     * país, nota mínima, temporadas mínimas y orden por nota.
      */
     private fun applyFilters(items: List<SearchItem>, filters: SearchFilters): List<SearchItem> {
         val filtered = items.filter { item ->
+            val countryOk = filters.country?.let { wanted ->
+                val raw = item.country ?: item.meta.country
+                if (raw == null) {
+                    true
+                } else {
+                    wanted.matches(raw)
+                }
+            } ?: true
+
             val ratingOk = filters.minRating?.let { minimum -> (item.rating ?: 0.0) >= minimum } ?: true
 
             val seasonsOk = when (val minimum = filters.minSeasons) {
@@ -161,7 +171,7 @@ class SearchViewModel : ViewModel() {
                 else -> item.meta.isSeries && (item.seasonCount ?: 0) >= minimum
             }
 
-            ratingOk && seasonsOk
+            countryOk && ratingOk && seasonsOk
         }
 
         return when (filters.sort) {

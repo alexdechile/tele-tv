@@ -92,6 +92,18 @@ internal object WikiParser {
         return WikiSummary(extract = extract, pageUrl = page)
     }
 
+    /** Títulos con su id de IMDb e indicación de si es serie, extraídos de una respuesta SPARQL. */
+    fun sparqlTitles(root: JsonObject?): List<WikiTitle> {
+        val bindings = root?.objOrNull("results")?.arrOrNull("bindings") ?: return emptyList()
+        return bindings.elements().mapNotNull { element ->
+            val obj = element.asObjectOrNull() ?: return@mapNotNull null
+            val imdb = obj.objOrNull("imdb")?.strOrNull("value")?.takeIf { IMDB.matches(it) } ?: return@mapNotNull null
+            val wtype = obj.objOrNull("wtype")?.strOrNull("value").orEmpty()
+            val isSeries = wtype.endsWith("Q5398426")
+            WikiTitle(imdbId = imdb, isSeries = isSeries)
+        }.distinctBy { it.imdbId }
+    }
+
     // ---------------------------------------------------------------------
     // Interno
     // ---------------------------------------------------------------------
@@ -186,6 +198,12 @@ internal data class WikiLabel(
 internal data class WikiSummary(
     val extract: String,
     val pageUrl: String?
+)
+
+/** Título extraído de Wikidata con id de IMDb y tipo. */
+data class WikiTitle(
+    val imdbId: String,
+    val isSeries: Boolean
 )
 
 private fun JsonObject.objOrNull(name: String): JsonObject? =

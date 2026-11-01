@@ -118,6 +118,36 @@ class WikiParsingTest {
         assertEquals("Netflix", WikiParser.KNOWN_PLATFORMS["Q907311"])
     }
 
+    @Test
+    fun `parseo sparql de titulos por pais`() {
+        val sparqlJson = json("""
+            {
+              "head": {"vars": ["imdb", "wtype", "links"]},
+              "results": {
+                "bindings": [
+                  {
+                    "imdb": {"type": "literal", "value": "tt0060196"},
+                    "wtype": {"type": "uri", "value": "http://www.wikidata.org/entity/Q11424"},
+                    "links": {"type": "literal", "value": "95"}
+                  },
+                  {
+                    "imdb": {"type": "literal", "value": "tt6468322"},
+                    "wtype": {"type": "uri", "value": "http://www.wikidata.org/entity/Q5398426"},
+                    "links": {"type": "literal", "value": "50"}
+                  }
+                ]
+              }
+            }
+        """.trimIndent())
+
+        val titles = WikiParser.sparqlTitles(sparqlJson)
+        assertEquals(2, titles.size)
+        assertEquals("tt0060196", titles[0].imdbId)
+        assertEquals(false, titles[0].isSeries)
+        assertEquals("tt6468322", titles[1].imdbId)
+        assertEquals(true, titles[1].isSeries)
+    }
+
     private fun entity() = WikiParser.entity(entityRoot(), "Q1079")!!
 
     private fun entityRoot() = json(

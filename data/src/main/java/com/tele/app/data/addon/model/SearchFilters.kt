@@ -45,6 +45,7 @@ enum class Decade(val from: Int, val to: Int) {
 data class SearchFilters(
     val types: Set<MediaType> = MediaType.all(),
     val query: String = "",
+    val country: Country? = null,
     val genre: String? = null,
     val decade: Decade? = null,
     val minRating: Int? = null,
@@ -55,10 +56,10 @@ data class SearchFilters(
 
     /** ¿Hay algún filtro que obligue a mirar la ficha de cada título? */
     val needsDetail: Boolean
-        get() = minRating != null || minSeasons != null || sort == SortOrder.RATED
+        get() = minRating != null || minSeasons != null || sort == SortOrder.RATED || country != null
 
     /** Sin filtros: el buscador no tiene nada que pedir todavía. */
     val isBlank: Boolean
-        get() = query.isBlank() && genre == null && decade == null &&
+        get() = query.isBlank() && country == null && genre == null && decade == null &&
             minRating == null && minSeasons == null
 }

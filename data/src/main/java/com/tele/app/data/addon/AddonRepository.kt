@@ -10,6 +10,7 @@ import com.tele.app.data.addon.model.MetaPreview
 import com.tele.app.data.addon.model.SearchFilters
 import com.tele.app.data.addon.model.SortOrder
 import com.tele.app.data.addon.model.StreamSource
+import com.tele.app.data.enrich.WikipediaEnricher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -33,7 +34,8 @@ class AddonRepository(
     private val addonUrls: List<String> = DefaultAddons.URLS,
     private val itemsPerRow: Int = 20,
     private val maxRowsPerAddon: Int = 2,
-    private val maxRows: Int = 6
+    private val maxRows: Int = 6,
+    private val enricher: WikipediaEnricher? = null
 ) {
 
     private val manifestCache = mutableMapOf<String, AddonManifest>()
@@ -110,6 +112,52 @@ class AddonRepository(
      */
     suspend fun search(filters: SearchFilters): List<MetaPreview> = coroutineScope {
         if (filters.types.isEmpty()) return@coroutineScope emptyList()
+
+        // Si hay filtro de país y no hay búsqueda de texto libre, consultamos Wikidata
+        // para traer los títulos más representativos del país y enriquecemos con Cinemeta.
+        if (filters.country != null && filters.query.isBlank()) {
+            val wikiTitles = try {
+                enricher?.titlesByCountry(
+                    countryQid = filters.country.wikidataQid,
+                    types = filters.types,
+                    decade = filters.decade,
+                    limit = 35
+                ) ?: emptyList()
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                emptyList()
+            }
+
+            if (wikiTitles.isNotEmpty()) {
+                val resolved = wikiTitles.map { title ->
+                    async {
+                        val mediaType = if (title.isSeries) MetaPreview.TYPE_SERIES else MetaPreview.TYPE_MOVIE
+                        detail(mediaType, title.imdbId)?.let { d ->
+                            MetaPreview(
+                                id = d.id,
+                                type = d.type,
+                                name = d.name,
+                                poster = d.poster,
+                                background = d.background,
+                                releaseInfo = d.year ?: d.releaseInfo,
+                                description = d.description,
+                                rating = d.rating,
+                                country = d.country ?: filters.country.nameEs
+                            )
+                        }
+                    }
+                }.awaitAll().filterNotNull()
+
+                if (resolved.isNotEmpty()) {
+                    val filteredByDecade = resolved.filter { meta -> matchesDecade(meta, filters.decade) }
+                    return@coroutineScope when (filters.sort) {
+                        SortOrder.POPULAR, SortOrder.RATED -> filteredByDecade
+                        SortOrder.RECENT -> filteredByDecade.sortedByDescending { it.year ?: 0 }
+                    }
+                }
+            }
+        }
 
         val pages = if (filters.decade != null || filters.needsDetail) WIDE_PAGES else NARROW_PAGES
 

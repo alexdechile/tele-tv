@@ -61,6 +61,21 @@ class WikipediaEnricher(
     /** Cuántas fichas se guardan en memoria (una por título abierto). */
     fun cachedCount(): Int = synchronized(cache) { cache.size }
 
+    /**
+     * Consulta las producciones más destacadas de un país mediante SPARQL en Wikidata.
+     * Devuelve una lista de [WikiTitle] con su IMDb ID y si es serie o película.
+     */
+    suspend fun titlesByCountry(
+        countryQid: String,
+        types: Set<com.tele.app.data.addon.model.MediaType> = com.tele.app.data.addon.model.MediaType.all(),
+        decade: com.tele.app.data.addon.model.Decade? = null,
+        limit: Int = 35
+    ): List<WikiTitle> {
+        val url = WikiUrls.countryTitlesSparql(countryQid, types, decade, limit)
+        val json = client.getJson(url) ?: return emptyList()
+        return WikiParser.sparqlTitles(json)
+    }
+
     private suspend fun load(
         imdbId: String,
         type: String,

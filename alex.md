@@ -1,6 +1,13 @@
 # Tele TV - Bitácora de Proyecto
 
 ## Último Realizado
+- **Búsqueda y filtro por país de origen en el buscador:**
+  - **Selector de país (`País: [Cualquiera ▾]`):** se agregó una nueva píldora interactiva en la barra de filtros del buscador con navegación D-pad. Despliega en una fila horizontal deslizable los principales países de producción cinematográfica y televisiva (España, Chile, Argentina, México, Estados Unidos, Colombia, Reino Unido, Francia, Italia, Alemania, Japón, Corea del Sur, Brasil, Canadá, Australia, Perú, Uruguay, India, etc.).
+  - **Descubrimiento cultural inteligente (Wikidata SPARQL + Cinemeta):**
+    - Al seleccionar un país sin texto libre, la app consulta la API oficial SPARQL de Wikidata (`query.wikidata.org`) para obtener las producciones más representativas y premiadas de ese país (ordenadas por relevancia cultural / sitelinks de Wikipedia), resolviendo simultáneamente sus carátulas, notas IMDb y metadatos en Cinemeta.
+    - Soporta combinación con los demás filtros (ej. Solo películas, Solo series, o década específica como 2010s).
+    - Si se escribe una búsqueda por texto (actor, director o título), el filtro de país afina los resultados para conservar únicamente las obras originarias de dicho país.
+  - **Etiquetas de procedencia en español:** se mapean y traducen automáticamente los países devueltos en inglés por Cinemeta (`"United States"`, `"Spain"`, `"South Korea"`, etc.) a nombres legibles en español, mostrándose claramente en el subtítulo de cada tarjeta (`"2024 · Película · España"`, `"2004 · Película · Chile"`, `"2017 · Serie · España"`).
 - **Corrección de lanzamiento de Filmin en Android TV (Leanback Intent):**
   - Se corrigió la resolución de intents para apps de Android TV: el método estándar `getLaunchIntentForPackage` busca actividades con `CATEGORY_LAUNCHER` (móviles/tablets) y devolvía null en apps nativas de TV como Filmin (`com.filmin.androidtv`), la cual solo declara `CATEGORY_LEANBACK_LAUNCHER`.
   - Se actualizó para consultar `getLeanbackLaunchIntentForPackage` con fallback explícito a `com.filmin.androidtv.MainActivity`, garantizando la apertura instantánea de Filmin al presionar el botón.

@@ -11,11 +11,11 @@ import com.tele.app.data.enrich.WikipediaEnricher
  * punto que habrá que migrar a módulos de inyección.
  */
 object AppGraph {
-    val addons: AddonRepository by lazy { AddonRepository() }
-
     /**
      * Ficha cultural (Wikidata/Wikipedia). Se comparte una sola instancia para
      * que la caché en memoria sirva a todas las pantallas.
      */
     val wiki: WikipediaEnricher by lazy { WikipediaEnricher() }
+
+    val addons: AddonRepository by lazy { AddonRepository(enricher = wiki) }
 }

@@ -137,7 +137,8 @@ class StremioAddonClient(
             background = stringOrNull("background"),
             releaseInfo = stringOrNull("releaseInfo") ?: stringOrNull("year"),
             description = stringOrNull("description"),
-            rating = doubleOrNull("imdbRating")
+            rating = doubleOrNull("imdbRating"),
+            country = stringOrNull("country") ?: stringOrList("country").joinToString(", ").takeIf { it.isNotBlank() }
         )
     }
 
@@ -162,7 +163,8 @@ class StremioAddonClient(
             seasons = parseSeasons(arrayOrNull("videos")),
             directors = stringOrList("director").ifEmpty { stringOrList("directors") },
             cast = arrayOrNull("cast").stringList(),
-            awards = stringOrNull("awards")
+            awards = stringOrNull("awards"),
+            country = stringOrNull("country") ?: stringOrList("country").joinToString(", ").takeIf { it.isNotBlank() }
         )
     }
 

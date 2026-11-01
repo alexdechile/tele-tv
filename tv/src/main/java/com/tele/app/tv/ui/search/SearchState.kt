@@ -12,7 +12,8 @@ import com.tele.app.data.addon.model.SearchFilters
 data class SearchItem(
     val meta: MetaPreview,
     val rating: Double? = null,
-    val seasonCount: Int? = null
+    val seasonCount: Int? = null,
+    val country: String? = null
 )
 
 /** Estado completo de la pantalla del buscador. */

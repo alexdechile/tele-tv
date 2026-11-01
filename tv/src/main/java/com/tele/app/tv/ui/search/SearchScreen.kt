@@ -44,6 +44,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
+import com.tele.app.data.addon.model.Country
 import com.tele.app.data.addon.model.Decade
 import com.tele.app.data.addon.model.MediaType
 import com.tele.app.data.addon.model.MetaPreview
@@ -212,6 +213,7 @@ private fun statusText(state: SearchUiState): String = when {
 private enum class FilterKind(val label: String) {
     TEXT("Texto"),
     TYPE("Tipo"),
+    COUNTRY("País"),
     GENRE("Género"),
     YEAR("Año"),
     RATING("Valoración"),
@@ -247,6 +249,7 @@ private fun chipText(kind: FilterKind, filters: SearchFilters, open: Boolean): S
     val value = when (kind) {
         FilterKind.TEXT -> filters.query.ifBlank { "sin texto" }
         FilterKind.TYPE -> typesLabel(filters.types)
+        FilterKind.COUNTRY -> filters.country?.nameEs ?: "Cualquiera"
         FilterKind.GENRE -> filters.genre?.let(::genreLabelEs) ?: "Cualquiera"
         FilterKind.YEAR -> filters.decade?.let(::decadeLabelEs) ?: "Cualquiera"
         FilterKind.RATING -> filters.minRating?.let { "$it o más" } ?: "Cualquiera"
@@ -288,6 +291,16 @@ private fun FilterPanel(
                         else -> MediaType.all()
                     }
                     onFiltersChange { it.copy(types = types) }
+                    onClose()
+                }
+            )
+
+            FilterKind.COUNTRY -> OptionRow(
+                options = listOf(COUNTRY_ANY) + Country.SUPPORTED.map { it.nameEs },
+                selected = filters.country?.nameEs ?: COUNTRY_ANY,
+                onSelect = { option ->
+                    val country = Country.SUPPORTED.firstOrNull { it.nameEs == option }
+                    onFiltersChange { it.copy(country = country) }
                     onClose()
                 }
             )
@@ -554,7 +567,7 @@ private fun ResultCard(item: SearchItem, onClick: () -> Unit) {
         )
 
         Text(
-            text = subtitle(meta),
+            text = subtitle(item),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -563,10 +576,16 @@ private fun ResultCard(item: SearchItem, onClick: () -> Unit) {
     }
 }
 
-private fun subtitle(meta: MetaPreview): String = listOfNotNull(
-    meta.releaseInfo,
-    if (meta.isSeries) "Serie" else "Película"
-).joinToString(" · ")
+private fun subtitle(item: SearchItem): String {
+    val meta = item.meta
+    val rawCountry = item.country ?: meta.country
+    val countryLabel = Country.displayLabel(rawCountry)
+    return listOfNotNull(
+        meta.releaseInfo,
+        if (meta.isSeries) "Serie" else "Película",
+        countryLabel
+    ).joinToString(" · ")
+}
 
 @Composable
 private fun Badge(text: String, modifier: Modifier = Modifier) {
@@ -621,6 +640,7 @@ private fun Chip(
 // Etiquetas en español
 // -------------------------------------------------------------------------
 
+private const val COUNTRY_ANY = "Cualquiera"
 private const val GENRE_ANY = "Cualquiera"
 private const val YEAR_ANY = "Cualquiera"
 private const val RATING_ANY = "Cualquiera"
