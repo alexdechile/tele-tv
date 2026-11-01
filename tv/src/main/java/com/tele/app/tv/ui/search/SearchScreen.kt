@@ -80,8 +80,8 @@ fun SearchScreen(
         } else {
             when (event.key) {
                 Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight,
-                Key.DpadUp, Key.DpadDown, Key.DpadLeft, Key.DpadRight,
-                Key.DpadCenter, Key.Enter, Key.Back, Key.Escape -> false
+                Key.DirectionCenter, Key.Enter, Key.NumPadEnter,
+                Key.Back, Key.Escape, Key.Menu -> false
 
                 Key.Backspace -> {
                     if (state.filters.query.isNotEmpty()) {
