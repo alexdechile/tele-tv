@@ -1,6 +1,10 @@
 # Tele TV - Bitácora de Proyecto
 
 ## Último Realizado
+- **Soporte de teclado físico en el buscador (teclado de control remoto / air-mouse):**
+  - Se implementó escucha directa de eventos de hardware (`onPreviewKeyEvent`) en el buscador: ahora se puede escribir y buscar directamente usando las teclas físicas del ratón apuntador / control remoto (letras, números, espacios y retroceso/borrar) a toda velocidad.
+  - **100% privado y sin teclado del sistema:** nunca se invoca el `InputMethodService` ni el teclado virtual de Android, evitando cualquier riesgo de espionaje o keylogger de apps externas o de la ROM del TV Box.
+  - Las flechas del D-pad, Enter y la tecla Volver se conservan intactas para la navegación normal.
 - **Cinefilia navegable, premios y plataformas oficiales de streaming (Filmin, MUBI, etc.):**
   - **Exploración cinéfila interactiva:** al pulsar "Ver ficha completa", los directores y los actores del reparto principal se muestran como fichas interactivas (`[🎬 Director]` y `[👤 Actor]`) navegables con el control remoto (D-pad). Al presionar `OK` sobre cualquier persona, la app salta inmediatamente al buscador precargando su nombre y mostrando toda su filmografía disponible en el catálogo para seguir explorando.
   - **Dónde verla (Streaming oficial):** la app detecta automáticamente vía Wikidata (propiedades de distribución y cadenas originales) si la película/serie está disponible en plataformas oficiales de cine y streaming como **Filmin**, **MUBI**, **Netflix**, **Prime Video**, **Disney+**, **Max**, **Apple TV+**, etc., mostrándolo claramente con distintivos visuales (`🟢 Filmin`, `🎬 MUBI`, etc.) tanto en modo compacto como en la ficha desplegada.

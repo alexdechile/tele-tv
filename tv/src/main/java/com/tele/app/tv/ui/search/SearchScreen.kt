@@ -31,6 +31,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -65,7 +70,51 @@ fun SearchScreen(
     var openFilter by remember { mutableStateOf<FilterKind?>(null) }
     val chipRequesters = remember { FilterKind.entries.map { FocusRequester() } }
 
-    Surface(modifier = modifier.fillMaxSize()) {
+    LaunchedEffect(Unit) {
+        runCatching { chipRequesters.firstOrNull()?.requestFocus() }
+    }
+
+    val handleKeyEvent: (androidx.compose.ui.input.key.KeyEvent) -> Boolean = { event ->
+        if (event.type != KeyEventType.KeyDown) {
+            false
+        } else {
+            when (event.key) {
+                Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight,
+                Key.DpadUp, Key.DpadDown, Key.DpadLeft, Key.DpadRight,
+                Key.DpadCenter, Key.Enter, Key.Back, Key.Escape -> false
+
+                Key.Backspace -> {
+                    if (state.filters.query.isNotEmpty()) {
+                        onFiltersChange { it.copy(query = it.query.dropLast(1)) }
+                        true
+                    } else {
+                        false
+                    }
+                }
+
+                else -> {
+                    val unicode = event.nativeKeyEvent.getUnicodeChar(event.nativeKeyEvent.metaState)
+                    if (unicode != 0) {
+                        val char = unicode.toChar()
+                        if (!Character.isISOControl(char)) {
+                            onFiltersChange { it.copy(query = it.query + char) }
+                            true
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                }
+            }
+        }
+    }
+
+    Surface(
+        modifier = modifier
+            .fillMaxSize()
+            .onPreviewKeyEvent(handleKeyEvent)
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
