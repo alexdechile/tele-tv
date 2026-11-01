@@ -17,4 +17,5 @@ data class PlaybackRequest(
 object NavPayload {
     var selectedMeta: MetaPreview? = null
     var playback: PlaybackRequest? = null
+    var initialSearchQuery: String? = null
 }

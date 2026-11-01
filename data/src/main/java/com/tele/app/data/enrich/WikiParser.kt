@@ -33,6 +33,8 @@ internal object WikiParser {
     fun facts(entity: JsonObject, type: String): WikiFacts {
         val creators = claimItemIds(entity, PROPERTY_CREATOR)
         val directors = claimItemIds(entity, PROPERTY_DIRECTOR)
+        val distributors = claimItemIds(entity, PROPERTY_DISTRIBUTED_BY)
+        val networks = claimItemIds(entity, PROPERTY_ORIGINAL_NETWORK)
 
         return WikiFacts(
             // Una serie suele tener "director" por episodio (decenas); el dato
@@ -42,6 +44,7 @@ internal object WikiParser {
             studioIds = claimItemIds(entity, PROPERTY_PRODUCTION_COMPANY),
             countryIds = claimItemIds(entity, PROPERTY_COUNTRY),
             languageIds = claimItemIds(entity, PROPERTY_LANGUAGE),
+            platformIds = (distributors + networks).distinct(),
             year = claimYear(entity, PROPERTY_PUBLICATION_DATE) ?: claimYear(entity, PROPERTY_START_TIME),
             eswikiTitle = sitelinkTitle(entity, "eswiki"),
             enwikiTitle = sitelinkTitle(entity, "enwiki")
@@ -141,6 +144,23 @@ internal object WikiParser {
     private const val PROPERTY_LANGUAGE = "P364"
     private const val PROPERTY_PUBLICATION_DATE = "P577"
     private const val PROPERTY_START_TIME = "P580"
+    private const val PROPERTY_DISTRIBUTED_BY = "P750"
+    private const val PROPERTY_ORIGINAL_NETWORK = "P449"
+
+    /** QIDs de plataformas oficiales conocidas a sus nombres amigables. */
+    val KNOWN_PLATFORMS = mapOf(
+        "Q3072105" to "Filmin",
+        "Q6708605" to "MUBI",
+        "Q907311" to "Netflix",
+        "Q1185668" to "Prime Video",
+        "Q54958752" to "Disney+",
+        "Q62446729" to "Apple TV+",
+        "Q644419" to "Max",
+        "Q23633" to "HBO",
+        "Q1058465" to "Paramount+",
+        "Q107119290" to "RTVE Play",
+        "Q112135829" to "Movistar Plus+"
+    )
 }
 
 /** Afirmaciones crudas de una entidad (todavía sin nombres legibles). */
@@ -150,6 +170,7 @@ internal data class WikiFacts(
     val studioIds: List<String> = emptyList(),
     val countryIds: List<String> = emptyList(),
     val languageIds: List<String> = emptyList(),
+    val platformIds: List<String> = emptyList(),
     val year: Int? = null,
     val eswikiTitle: String? = null,
     val enwikiTitle: String? = null

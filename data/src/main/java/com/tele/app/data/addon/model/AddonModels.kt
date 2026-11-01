@@ -107,7 +107,10 @@ data class MetaDetail(
     val rating: Double? = null,
     val runtime: String? = null,
     val status: String? = null,
-    val seasons: List<Season> = emptyList()
+    val seasons: List<Season> = emptyList(),
+    val directors: List<String> = emptyList(),
+    val cast: List<String> = emptyList(),
+    val awards: String? = null
 ) {
     /** Año de estreno legible ("2008–2013" → 2008). */
     val firstYear: Int? get() = year?.let(::yearOfReleaseInfo) ?: releaseInfo?.let(::yearOfReleaseInfo)

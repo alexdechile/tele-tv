@@ -45,6 +45,7 @@ class WikiParsingTest {
         assertEquals(listOf("Q652390"), facts.studioIds)
         assertEquals(listOf("Q30"), facts.countryIds)
         assertEquals(listOf("Q7976"), facts.languageIds)
+        assertEquals(listOf("Q3072105"), facts.platformIds)
         assertEquals(2008, facts.year)
         assertEquals("Breaking Bad", facts.eswikiTitle)
     }
@@ -110,6 +111,13 @@ class WikiParsingTest {
         assertEquals(true, cut.length <= 81)
     }
 
+    @Test
+    fun `las plataformas conocidas se mapean correctamente`() {
+        assertEquals("Filmin", WikiParser.KNOWN_PLATFORMS["Q3072105"])
+        assertEquals("MUBI", WikiParser.KNOWN_PLATFORMS["Q6708605"])
+        assertEquals("Netflix", WikiParser.KNOWN_PLATFORMS["Q907311"])
+    }
+
     private fun entity() = WikiParser.entity(entityRoot(), "Q1079")!!
 
     private fun entityRoot() = json(
@@ -125,6 +133,7 @@ class WikiParsingTest {
             "P272":[{"mainsnak":{"datavalue":{"value":{"id":"Q652390"}}}}],
             "P495":[{"mainsnak":{"datavalue":{"value":{"id":"Q30"}}}}],
             "P364":[{"mainsnak":{"datavalue":{"value":{"id":"Q7976"}}}}],
+            "P750":[{"mainsnak":{"datavalue":{"value":{"id":"Q3072105"}}}}],
             "P580":[{"mainsnak":{"datavalue":{"value":{"time":"+2008-01-20T00:00:00Z","precision":9}}}}]
           },
           "sitelinks":{"eswiki":{"title":"Breaking Bad"}}

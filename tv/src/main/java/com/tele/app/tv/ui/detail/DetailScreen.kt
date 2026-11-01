@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -67,6 +68,7 @@ fun DetailScreen(
     meta: MetaPreview,
     onPlay: (StreamSource, String?) -> Unit,
     modifier: Modifier = Modifier,
+    onPersonSelected: ((String) -> Unit)? = null,
     addons: AddonRepository = AppGraph.addons,
     wiki: WikipediaEnricher = AppGraph.wiki
 ) {
@@ -187,7 +189,12 @@ fun DetailScreen(
                     // Serie sin episodio elegido: primero la ficha cultural
                     // (compacta) y después el navegador de temporadas.
                     enriched?.takeIf { it.hasContent }?.let { info ->
-                        WikipediaCard(info, biographyLines = 1)
+                        WikipediaCard(
+                            info = info,
+                            detail = detail,
+                            biographyLines = 1,
+                            onPersonSelected = onPersonSelected
+                        )
                         Spacer(modifier = Modifier.height(10.dp))
                     }
                     SeasonBrowser(
@@ -222,11 +229,13 @@ fun DetailScreen(
                             onPlay(stream, selectedEpisode?.let { "${it.code} · ${it.name}" })
                         },
                         header = enriched?.takeIf { it.hasContent },
+                        detail = detail,
                         wikiExpanded = wikiExpanded,
                         // La sinopsis en español solo se despliega si arriba se
                         // está mostrando la descripción en inglés de Cinemeta.
                         wikiOverviewLines = if (meta.description != null) 8 else 0,
                         onToggleWiki = { wikiExpanded = !wikiExpanded },
+                        onPersonSelected = onPersonSelected,
                         modifier = Modifier.fillMaxWidth().weight(1f)
                     )
                 }
@@ -238,22 +247,22 @@ fun DetailScreen(
 /**
  * Ficha cultural (Wikidata/Wikipedia) bajo la sinopsis.
  *
- * Todo es texto plano ya limpiado en `:data`: no hay HTML, ni WebView, ni
- * enlaces clicables. Tampoco agrega botones, así que la navegación con el
- * control remoto sigue exactamente igual que antes de esta sección.
- *
- * Las líneas son deliberadamente cortas: en una TV de 540 dp de alto cada línea
- * de más empuja las fuentes fuera de la pantalla (ese fue el bug: la ficha se
- * quedaba con el espacio y las fuentes aparecían cortadas al fondo).
+ * En modo compacto, muestra un resumen textual para no entorpecer el D-pad hacia
+ * las fuentes. Al desplegar "Ver ficha completa", el director y el reparto se
+ * convierten en fichas interactivas para explorar su filmografía, y se muestran
+ * premios y plataformas oficiales de streaming (Filmin, MUBI, etc.).
  */
 @Composable
 private fun WikipediaCard(
     info: EnrichedInfo,
+    detail: MetaDetail? = null,
+    expanded: Boolean = false,
     biographyLines: Int = 2,
     castLines: Int = 1,
-    overviewLines: Int = 0
+    overviewLines: Int = 0,
+    onPersonSelected: ((String) -> Unit)? = null
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         info.creditLine().takeIf { it.isNotBlank() }?.let { line ->
             Text(
                 text = line,
@@ -264,14 +273,79 @@ private fun WikipediaCard(
             )
         }
 
-        if (info.crew.isNotEmpty()) {
-            Text(
-                text = "${info.crewLabel}: ${info.crewLine()}",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+        // Plataformas oficiales (Filmin, MUBI, Netflix...)
+        if (info.platforms.isNotEmpty()) {
+            if (expanded) {
+                Text(
+                    text = "Disponible en streaming oficial:",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(info.platforms.size) { index ->
+                        PlatformBadge(name = info.platforms[index])
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+            } else {
+                Text(
+                    text = "🟢 Disponible en: ${info.platforms.joinToString(" · ")}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        // Premios y galardones
+        detail?.awards?.takeIf { it.isNotBlank() }?.let { awards ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(text = "🏆", style = MaterialTheme.typography.labelSmall)
+                Text(
+                    text = awards,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = if (expanded) 3 else 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        // Directores / Creadores
+        val crewMembers = (info.crew.takeIf { it.isNotEmpty() } ?: detail?.directors).orEmpty()
+        if (crewMembers.isNotEmpty()) {
+            if (expanded && onPersonSelected != null) {
+                Text(
+                    text = "${info.crewLabel}:",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(crewMembers.size) { index ->
+                        val person = crewMembers[index]
+                        PersonChip(
+                            name = person,
+                            role = "🎬",
+                            onClick = { onPersonSelected(person) }
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+            } else {
+                Text(
+                    text = "${info.crewLabel}: ${crewMembers.joinToString(", ")}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
 
         info.biography?.takeIf { biographyLines > 0 }?.let { biography ->
@@ -284,14 +358,36 @@ private fun WikipediaCard(
             )
         }
 
-        if (info.cast.isNotEmpty()) {
-            Text(
-                text = "Reparto: ${info.castLine()}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = castLines,
-                overflow = TextOverflow.Ellipsis
-            )
+        // Reparto
+        val castMembers = (info.cast.takeIf { it.isNotEmpty() } ?: detail?.cast).orEmpty()
+        if (castMembers.isNotEmpty()) {
+            if (expanded && onPersonSelected != null) {
+                Text(
+                    text = "Reparto principal:",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(castMembers.size) { index ->
+                        val person = castMembers[index]
+                        PersonChip(
+                            name = person,
+                            role = "👤",
+                            onClick = { onPersonSelected(person) }
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+            } else {
+                Text(
+                    text = "Reparto: ${castMembers.take(5).joinToString(", ")}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = castLines,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
 
         // Sinopsis en español de Wikipedia: arriba se muestra la de Cinemeta,
@@ -312,6 +408,67 @@ private fun WikipediaCard(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1
         )
+    }
+}
+
+/** Chip interactivo para un actor o director que abre su filmografía. */
+@Composable
+private fun PersonChip(
+    name: String,
+    role: String,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.height(36.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxHeight()
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(text = role, style = MaterialTheme.typography.labelSmall)
+            Text(
+                text = name,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+/** Distintivo visual para servicios de streaming oficiales (Filmin, MUBI, etc.). */
+@Composable
+private fun PlatformBadge(name: String) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.height(32.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxHeight()
+                .padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            val icon = when {
+                name.contains("Filmin", ignoreCase = true) -> "🟢"
+                name.contains("MUBI", ignoreCase = true) -> "🎬"
+                name.contains("Netflix", ignoreCase = true) -> "🍿"
+                name.contains("Apple", ignoreCase = true) -> "🍏"
+                else -> "📺"
+            }
+            Text(text = icon, style = MaterialTheme.typography.labelSmall)
+            Text(
+                text = name,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
     }
 }
 
@@ -452,9 +609,11 @@ private fun StreamsList(
     state: StreamsState?,
     onPlay: (StreamSource) -> Unit,
     header: EnrichedInfo?,
+    detail: MetaDetail?,
     wikiExpanded: Boolean,
     wikiOverviewLines: Int,
     onToggleWiki: () -> Unit,
+    onPersonSelected: ((String) -> Unit)?,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
@@ -495,9 +654,12 @@ private fun StreamsList(
                 Column {
                     WikipediaCard(
                         info = info,
+                        detail = detail,
+                        expanded = wikiExpanded,
                         biographyLines = if (wikiExpanded) 12 else 2,
                         castLines = if (wikiExpanded) 3 else 1,
-                        overviewLines = if (wikiExpanded) wikiOverviewLines else 0
+                        overviewLines = if (wikiExpanded) wikiOverviewLines else 0,
+                        onPersonSelected = onPersonSelected
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Pill(

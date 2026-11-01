@@ -44,6 +44,14 @@ fun AppNavigator() {
             val viewModel: SearchViewModel = viewModel()
             val state by viewModel.state.collectAsState()
 
+            LaunchedEffect(Unit) {
+                val initial = NavPayload.initialSearchQuery
+                if (!initial.isNullOrBlank()) {
+                    NavPayload.initialSearchQuery = null
+                    viewModel.setQuery(initial)
+                }
+            }
+
             SearchScreen(
                 state = state,
                 onFiltersChange = viewModel::updateFilters,
@@ -68,6 +76,10 @@ fun AppNavigator() {
                         val title = listOfNotNull(meta.name, subtitle).joinToString(" · ")
                         NavPayload.playback = stream.toPlaybackRequest(title)
                         navController.navigate(ROUTE_PLAYER)
+                    },
+                    onPersonSelected = { person ->
+                        NavPayload.initialSearchQuery = person
+                        navController.navigate(ROUTE_SEARCH)
                     }
                 )
             }

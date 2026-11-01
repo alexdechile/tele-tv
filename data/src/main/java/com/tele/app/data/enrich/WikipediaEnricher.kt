@@ -72,7 +72,8 @@ class WikipediaEnricher(
                 facts.castIds.take(MAX_CAST) +
                 facts.studioIds.take(MAX_STUDIOS) +
                 facts.countryIds.take(MAX_PLACES) +
-                facts.languageIds.take(MAX_PLACES)
+                facts.languageIds.take(MAX_PLACES) +
+                facts.platformIds.take(MAX_PLATFORMS)
             ).distinct()
 
         if (ids.isEmpty()) return null
@@ -86,11 +87,21 @@ class WikipediaEnricher(
         val studios = facts.studioIds.mapNotNull { labels[it]?.text }.take(MAX_STUDIOS)
         val countries = facts.countryIds.mapNotNull { labels[it]?.text }.take(MAX_PLACES)
         val languages = facts.languageIds.mapNotNull { labels[it]?.text }.take(MAX_PLACES)
+        val platforms = buildList {
+            for (id in facts.platformIds) {
+                val known = WikiParser.KNOWN_PLATFORMS[id]
+                if (known != null) {
+                    add(known)
+                } else {
+                    labels[id]?.text?.takeIf { it.isNotBlank() }?.let { add(it) }
+                }
+            }
+        }.distinct().take(MAX_PLATFORMS)
 
         val biography = biographyOf(labels, facts.crewIds.firstOrNull())
         val overview = overviewOf(facts)
 
-        if (crew.isEmpty() && cast.isEmpty() && studios.isEmpty() && overview == null) return null
+        if (crew.isEmpty() && cast.isEmpty() && studios.isEmpty() && overview == null && platforms.isEmpty()) return null
 
         return EnrichedInfo(
             crewLabel = if (type == WikiParser.TYPE_SERIES) "Creada por" else "Dirección",
@@ -102,6 +113,7 @@ class WikipediaEnricher(
             languages = languages,
             year = facts.year ?: fallbackYear,
             overview = overview?.first,
+            platforms = platforms,
             sourceUrl = overview?.second
         )
     }
@@ -142,6 +154,7 @@ class WikipediaEnricher(
         const val MAX_CAST = 6
         const val MAX_STUDIOS = 2
         const val MAX_PLACES = 2
+        const val MAX_PLATFORMS = 4
 
         /** La biografía en pantalla es un párrafo corto, no el artículo. */
         const val BIO_MAX_CHARS = 420

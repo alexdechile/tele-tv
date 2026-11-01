@@ -1,6 +1,10 @@
 # Tele TV - Bitácora de Proyecto
 
 ## Último Realizado
+- **Cinefilia navegable, premios y plataformas oficiales de streaming (Filmin, MUBI, etc.):**
+  - **Exploración cinéfila interactiva:** al pulsar "Ver ficha completa", los directores y los actores del reparto principal se muestran como fichas interactivas (`[🎬 Director]` y `[👤 Actor]`) navegables con el control remoto (D-pad). Al presionar `OK` sobre cualquier persona, la app salta inmediatamente al buscador precargando su nombre y mostrando toda su filmografía disponible en el catálogo para seguir explorando.
+  - **Dónde verla (Streaming oficial):** la app detecta automáticamente vía Wikidata (propiedades de distribución y cadenas originales) si la película/serie está disponible en plataformas oficiales de cine y streaming como **Filmin**, **MUBI**, **Netflix**, **Prime Video**, **Disney+**, **Max**, **Apple TV+**, etc., mostrándolo claramente con distintivos visuales (`🟢 Filmin`, `🎬 MUBI`, etc.) tanto en modo compacto como en la ficha desplegada.
+  - **Premios y galardones:** se incorporó la lectura de galardones (Oscars, festivales y nominaciones totales) de Cinemeta (`meta.awards`), presentándolos con el distintivo `🏆` en la ficha cultural.
 - **Ficha cultural desplegable y género Música en el buscador:**
   - La ficha del detalle sigue entrando corta (para no empujar las fuentes), pero ahora tiene el botón **"Ver ficha completa"**: despliega la biografía entera, el reparto completo y una **sinopsis en español** (la de arriba, de Cinemeta, viene en inglés). Se vuelve a cerrar con "Ocultar ficha cultural".
   - **Género Música:** el buscador ahora ofrece **Música** (y **Musical**) en el filtro de género, y devuelve 50 títulos: biopics, películas de conciertos y musicales (Whiplash, Coco, La La Land, Michael, The Muppet Show…). Los que tienen seeds se reproducen igual que todo lo demás.

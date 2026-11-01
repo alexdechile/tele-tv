@@ -159,7 +159,10 @@ class StremioAddonClient(
             rating = doubleOrNull("imdbRating"),
             runtime = stringOrNull("runtime"),
             status = stringOrNull("status"),
-            seasons = parseSeasons(arrayOrNull("videos"))
+            seasons = parseSeasons(arrayOrNull("videos")),
+            directors = stringOrList("director").ifEmpty { stringOrList("directors") },
+            cast = arrayOrNull("cast").stringList(),
+            awards = stringOrNull("awards")
         )
     }
 
@@ -254,6 +257,13 @@ class StremioAddonClient(
 
     private fun JsonObject.stringList(name: String): List<String> =
         arrayOrNull(name).stringList()
+
+    private fun JsonObject.stringOrList(name: String): List<String> {
+        val arr = arrayOrNull(name)
+        if (arr != null) return arr.stringList()
+        val str = stringOrNull(name)
+        return if (!str.isNullOrBlank()) listOf(str) else emptyList()
+    }
 
     companion object {
         const val DEFAULT_LIMIT = 24

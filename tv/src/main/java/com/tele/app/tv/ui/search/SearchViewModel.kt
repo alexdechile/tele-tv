@@ -51,8 +51,20 @@ class SearchViewModel : ViewModel() {
             _state.update { it.copy(genres = genres) }
         }
 
+        val initialQuery = com.tele.app.tv.ui.navigation.NavPayload.initialSearchQuery
+        if (!initialQuery.isNullOrBlank()) {
+            com.tele.app.tv.ui.navigation.NavPayload.initialSearchQuery = null
+            _state.update { it.copy(filters = SearchFilters(query = initialQuery)) }
+        }
+
         // Sin filtros el catálogo devuelve lo popular: mejor abrir con contenido
         // que con una pantalla en blanco esperando que alguien elija un género.
+        scheduleSearch(immediate = true)
+    }
+
+    /** Establece un término de búsqueda nuevo (ej. al pulsar un actor o director) y busca ya. */
+    fun setQuery(query: String) {
+        _state.update { it.copy(filters = SearchFilters(query = query)) }
         scheduleSearch(immediate = true)
     }
 

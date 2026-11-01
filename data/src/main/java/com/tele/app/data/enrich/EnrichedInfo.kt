@@ -25,12 +25,14 @@ data class EnrichedInfo(
     val year: Int? = null,
     /** Sinopsis en español; complementa la descripción en inglés de Cinemeta. */
     val overview: String? = null,
+    /** Plataformas oficiales de streaming donde está disponible (Filmin, MUBI, Netflix, etc.). */
+    val platforms: List<String> = emptyList(),
     val sourceUrl: String? = null,
     val license: String = "Wikipedia (CC BY-SA)"
 ) {
 
     val hasContent: Boolean
-        get() = crew.isNotEmpty() || cast.isNotEmpty() || studios.isNotEmpty() || overview != null
+        get() = crew.isNotEmpty() || cast.isNotEmpty() || studios.isNotEmpty() || overview != null || platforms.isNotEmpty()
 
     /** "Productora: Sony · Estados Unidos · inglés · 2008" (solo lo disponible). */
     fun creditLine(): String = buildList {
