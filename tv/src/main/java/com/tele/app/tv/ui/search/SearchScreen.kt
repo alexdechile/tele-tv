@@ -39,7 +39,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.Card
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
@@ -52,6 +51,7 @@ import com.tele.app.data.addon.model.SearchFilters
 import com.tele.app.data.addon.model.SortOrder
 import com.tele.app.tv.ui.components.SkeletonGrid
 import kotlin.math.round
+import com.tele.app.tv.ui.components.TeleCard
 
 /**
  * Buscador avanzado, pensado para el control remoto.
@@ -459,7 +459,7 @@ private fun TextPad(query: String, onChange: (String) -> Unit, onDone: () -> Uni
 
 @Composable
 private fun KeyCap(text: String, wide: Boolean = false, onClick: () -> Unit) {
-    Card(
+    TeleCard(
         onClick = onClick,
         modifier = Modifier
             .width(if (wide) 84.dp else 34.dp)
@@ -525,7 +525,7 @@ private fun ResultCard(item: SearchItem, onClick: () -> Unit) {
     val meta = item.meta
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Card(
+        TeleCard(
             onClick = onClick,
             modifier = Modifier
                 .fillMaxWidth()
@@ -615,7 +615,7 @@ private fun Chip(
     requester: FocusRequester? = null,
     onClick: () -> Unit
 ) {
-    Card(
+    TeleCard(
         onClick = onClick,
         modifier = modifier
             .height(48.dp)

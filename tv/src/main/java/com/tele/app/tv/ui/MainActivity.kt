@@ -1,5 +1,7 @@
 package com.tele.app.tv.ui
 
+import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.Bundle
 import android.view.Window
 import android.view.WindowManager
@@ -30,11 +32,11 @@ import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.tv.material3.Card
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.tele.app.tv.crash.CrashReporter
+import com.tele.app.tv.ui.components.TeleCard
 import com.tele.app.tv.ui.navigation.AppNavigator
 
 class MainActivity : ComponentActivity() {
@@ -43,17 +45,29 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         CrashReporter.install(applicationContext)
 
-        // Modo pantalla completa inmersivo para Android TV (elimina barra de título gris y barra de estado)
         requestWindowFeature(Window.FEATURE_NO_TITLE)
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_FULLSCREEN,
-            WindowManager.LayoutParams.FLAG_FULLSCREEN
-        )
-        WindowCompat.setDecorFitsSystemWindows(window, false)
+
         val insetsController = WindowCompat.getInsetsController(window, window.decorView)
-        insetsController.hide(WindowInsetsCompat.Type.systemBars())
-        insetsController.systemBarsBehavior =
-            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+
+        if (isTelevision()) {
+            // En la TV no hay barra de navegación que valga: pantalla completa inmersiva.
+            // (Elimina la banda gris del título nativo y la barra de estado.)
+            window.setFlags(
+                WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                WindowManager.LayoutParams.FLAG_FULLSCREEN
+            )
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            insetsController.hide(WindowInsetsCompat.Type.systemBars())
+            insetsController.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        } else {
+            // Tablet/telefono: el tema es `Fullscreen`, así que hay que devolver las barras
+            // explícitamente. Sin barra de navegación no hay "atrás" visible y la app deja
+            // de ser usable al toque; además el contenido tiene que respetar los insets.
+            window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+            WindowCompat.setDecorFitsSystemWindows(window, true)
+            insetsController.show(WindowInsetsCompat.Type.systemBars())
+        }
 
         // Si la ejecución anterior se cayó, mostramos el error en pantalla:
         // así un problema se puede reportar con una foto, sin adb.
@@ -80,6 +94,20 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * ¿Corre en Android TV?
+     *
+     * El KM6 declara `leanback` y arranca con `UI_MODE_TYPE_TELEVISION`; la Lenovo
+     * YT-X705F, ninguno de los dos. Se decide una sola vez en `onCreate`, así que la
+     * tablet no hereda la pantalla inmersiva que la TV necesita.
+     */
+    private fun isTelevision(): Boolean {
+        val byUiMode = (resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK) ==
+            Configuration.UI_MODE_TYPE_TELEVISION
+        val byFeature = packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
+        return byUiMode || byFeature
     }
 }
 
@@ -120,7 +148,7 @@ private fun CrashScreen(trace: String, onContinue: () -> Unit) {
             }
         }
 
-        Card(onClick = onContinue, modifier = Modifier.width(260.dp).height(64.dp)) {
+        TeleCard(onClick = onContinue, modifier = Modifier.width(260.dp).height(64.dp)) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(text = "Continuar a Tele TV", style = MaterialTheme.typography.titleMedium)
             }

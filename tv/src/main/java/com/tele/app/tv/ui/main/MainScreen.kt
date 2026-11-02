@@ -34,7 +34,6 @@ import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.Card
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
@@ -42,6 +41,7 @@ import coil.compose.AsyncImage
 import com.tele.app.data.addon.model.HomeRow
 import com.tele.app.data.addon.model.MetaPreview
 import com.tele.app.tv.ui.components.SkeletonCatalog
+import com.tele.app.tv.ui.components.TeleCard
 
 /** Home de la TV: filas de carátulas navegables con el D-pad. */
 @Composable
@@ -76,7 +76,7 @@ private fun ErrorPanel(message: String, onRetry: () -> Unit) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Card(onClick = onRetry, modifier = Modifier.width(240.dp).height(64.dp)) {
+            TeleCard(onClick = onRetry, modifier = Modifier.width(240.dp).height(64.dp)) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(text = "Reintentar", style = MaterialTheme.typography.titleMedium)
                 }
@@ -174,7 +174,7 @@ private fun HeaderRow(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f)
         )
-        Card(onClick = onToggleGrid, modifier = Modifier.width(260.dp).height(64.dp)) {
+        TeleCard(onClick = onToggleGrid, modifier = Modifier.width(260.dp).height(64.dp)) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     text = if (gridMode) "Vista: Filas" else "Vista: Cuadrícula",
@@ -182,7 +182,7 @@ private fun HeaderRow(
                 )
             }
         }
-        Card(onClick = onOpenSearch, modifier = Modifier.width(240.dp).height(64.dp)) {
+        TeleCard(onClick = onOpenSearch, modifier = Modifier.width(240.dp).height(64.dp)) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(text = "Buscar en el catálogo", style = MaterialTheme.typography.titleMedium)
             }
@@ -258,7 +258,7 @@ private fun PosterCard(
         modifier = Modifier.width(180.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Card(
+        TeleCard(
             onClick = onClick,
             modifier = Modifier
                 .width(180.dp)
