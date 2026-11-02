@@ -1,6 +1,8 @@
 # Tele TV
 
-App de streaming de video por torrents para **Android TV** (solo TV: no móvil, no touch).
+App de streaming de video por torrents para **Android TV**, y el mismo APK sirve en **tablet**
+(tacto y mouse, no solo D-pad). Un solo binario: la UI es la misma de 10 pies, lo que cambia
+por dispositivo es la entrada (ver `TeleCard`) y las barras del sistema.
 
 - UI: Kotlin + **Jetpack Compose for TV** (`androidx.tv.material3`), paradigma *10-foot UI*.
 - Reproductor: **Media3 / ExoPlayer** (`PlayerView` vía `AndroidView`, porque `media3-ui-compose` no existe).
