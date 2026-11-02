@@ -1,5 +1,6 @@
 package com.tele.app.tv.ui.player
 
+import android.net.Uri
 import android.util.Log
 import android.view.LayoutInflater
 import androidx.activity.compose.BackHandler
@@ -24,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -35,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -72,9 +75,11 @@ import androidx.media3.exoplayer.audio.AudioCapabilities
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import androidx.tv.material3.Card
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.tele.app.core.torrent.TorrentEngine
+import com.tele.app.core.torrent.TorrentStreamInfo
 import com.tele.app.core.torrent.TorrentStreamState
 import com.tele.app.tv.R
 import com.tele.app.tv.audio.AudioAwareRenderersFactory
@@ -122,46 +127,68 @@ data class SubtitleOption(
     val track: SubtitleTrackItem?
 )
 
-private fun friendlyLanguageName(lang: String?): String {
-    if (lang.isNullOrBlank() || lang == "und") return "Desconocido"
-    val lower = lang.lowercase().trim()
-    return when {
-        lower in listOf("es", "spa", "es-419", "es-es", "es-la") -> "Español"
-        lower in listOf("en", "eng", "en-us", "en-gb") -> "Inglés"
-        lower in listOf("pt", "por", "pt-br", "pt-pt") -> "Portugués"
-        lower in listOf("fr", "fra", "fre") -> "Francés"
-        lower in listOf("it", "ita") -> "Italiano"
-        lower in listOf("de", "deu", "ger") -> "Alemán"
-        lower in listOf("ja", "jpn") -> "Japonés"
-        lower in listOf("ko", "kor") -> "Coreano"
-        lower in listOf("zh", "zho", "chi") -> "Chino"
-        lower in listOf("ru", "rus") -> "Ruso"
-        else -> runCatching {
-            Locale.forLanguageTag(lower).getDisplayLanguage(Locale("es")).replaceFirstChar { it.uppercase() }
-        }.getOrNull()?.takeIf { it.isNotBlank() } ?: lower.uppercase()
-    }
+/** Una pista de audio del contenedor, tal como la reporta ExoPlayer. */
+data class AudioTrackItem(
+    val id: String,
+    val label: String,
+    val mediaTrackGroup: TrackGroup,
+    val trackIndex: Int
+)
+
+private fun buildSubtitleLabel(format: Format, trackNumber: Int): String = TrackLabels.subtitle(
+    language = format.language,
+    customLabel = format.label,
+    isForced = (format.selectionFlags and C.SELECTION_FLAG_FORCED) != 0,
+    isSdh = format.label?.contains("sdh", ignoreCase = true) == true ||
+        (format.roleFlags and C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND) != 0,
+    trackNumber = trackNumber
+)
+
+private fun buildAudioLabel(format: Format, trackNumber: Int): String = TrackLabels.audio(
+    language = format.language,
+    mimeType = format.sampleMimeType,
+    channelCount = format.channelCount,
+    trackNumber = trackNumber
+)
+
+/** Etiqueta corta para el botón de la barra. */
+private fun shortAudioLabel(items: List<AudioTrackItem>, selectedId: String?): String =
+    TrackLabels.shortAudio(
+        labels = items.map { it.label },
+        selectedIndex = items.indexOfFirst { it.id == selectedId }.takeIf { it >= 0 }
+    )
+
+private fun applyAudioSelection(player: ExoPlayer, item: AudioTrackItem) {
+    val builder = player.trackSelectionParameters.buildUpon()
+    builder.setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
+    builder.clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+    builder.setOverrideForType(
+        TrackSelectionOverride(item.mediaTrackGroup, listOf(item.trackIndex))
+    )
+    player.trackSelectionParameters = builder.build()
 }
 
-private fun buildSubtitleLabel(format: Format, trackNumber: Int): String {
-    val langName = friendlyLanguageName(format.language)
-    val customLabel = format.label?.trim()?.takeIf { it.isNotBlank() }
-    val isForced = (format.selectionFlags and C.SELECTION_FLAG_FORCED) != 0
-    val isSdh = customLabel?.contains("sdh", ignoreCase = true) == true ||
-        (format.roleFlags and C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND) != 0
-
-    val base = when {
-        customLabel != null && !customLabel.equals(langName, ignoreCase = true) -> {
-            if (langName != "Desconocido") "$langName ($customLabel)" else customLabel
-        }
-        langName != "Desconocido" -> langName
-        else -> "Pista $trackNumber"
+/**
+ * Arma el `MediaItem` con los subtítulos sueltos del torrent.
+ *
+ * Van como `SubtitleConfiguration` apuntando al servidor local: ExoPlayer los
+ * pide por HTTP como cualquier otro recurso y Media3 los parsea según el
+ * `mimeType` (SubRip, WebVTT o SSA).
+ */
+private fun buildMediaItem(info: TorrentStreamInfo): MediaItem {
+    val subtitles = info.subtitles.map { subtitle ->
+        MediaItem.SubtitleConfiguration.Builder(Uri.parse(subtitle.url))
+            .setMimeType(subtitle.contentType)
+            .setLabel(subtitle.label)
+            .apply { subtitle.language?.let { setLanguage(it) } }
+            .setSelectionFlags(0)
+            .build()
     }
 
-    val tags = mutableListOf<String>()
-    if (isForced && !base.contains("forz", ignoreCase = true)) tags.add("Forzado")
-    if (isSdh && !base.contains("sdh", ignoreCase = true)) tags.add("SDH")
-
-    return if (tags.isNotEmpty()) "$base [${tags.joinToString(", ")}]" else base
+    return MediaItem.Builder()
+        .setUri(info.url)
+        .setSubtitleConfigurations(subtitles)
+        .build()
 }
 
 private fun applySubtitleSelection(player: ExoPlayer, option: SubtitleOption) {
@@ -201,11 +228,13 @@ fun PlayerScreen(
 ) {
     var controlsOpen by remember { mutableStateOf(true) }
 
+    var trackMenuOpen by remember { mutableStateOf(false) }
+
     BackHandler {
-        if (controlsOpen) {
-            controlsOpen = false
-        } else {
-            onBack()
+        when {
+            trackMenuOpen -> trackMenuOpen = false
+            controlsOpen -> controlsOpen = false
+            else -> onBack()
         }
     }
 
@@ -242,7 +271,10 @@ fun PlayerScreen(
         mutableStateOf(SubtitleOption("off", "Desactivados", null))
     }
     var userChangedSubtitle by remember { mutableStateOf(false) }
+    var availableAudio by remember { mutableStateOf(listOf<AudioTrackItem>()) }
+    var selectedAudioId by remember { mutableStateOf<String?>(null) }
     var isFullScreenZoom by remember { mutableStateOf(false) }
+    var menuStartsWithAudio by remember { mutableStateOf(true) }
     var isPlaying by remember { mutableStateOf(false) }
     var isBuffering by remember { mutableStateOf(false) }
     var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
@@ -259,9 +291,11 @@ fun PlayerScreen(
     var lastInteractionTime by remember { mutableStateOf(System.currentTimeMillis()) }
     val notifyInteraction = { lastInteractionTime = System.currentTimeMillis() }
 
-    // Auto-ocultar controles tras 5 segundos de inactividad mientras se reproduce el video
-    LaunchedEffect(controlsOpen, isPlaying, lastInteractionTime) {
-        if (controlsOpen && isPlaying) {
+    // Auto-ocultar controles tras 5 segundos de inactividad mientras se reproduce
+    // el video. Con el menú de pistas abierto no se oculta: el menú se quedaría
+    // flotando solo sobre la película, sin la barra de la que salió.
+    LaunchedEffect(controlsOpen, isPlaying, lastInteractionTime, trackMenuOpen) {
+        if (controlsOpen && isPlaying && !trackMenuOpen) {
             delay(5000)
             controlsOpen = false
         }
@@ -310,8 +344,31 @@ fun PlayerScreen(
                     }
 
                     override fun onTracksChanged(tracks: Tracks) {
-                        val audioGroup = tracks.groups
-                            .firstOrNull { group -> group.type == C.TRACK_TYPE_AUDIO }
+                        val audioGroups = tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
+                        val audioOptions = mutableListOf<AudioTrackItem>()
+                        var audioCounter = 1
+                        for (group in audioGroups) {
+                            for (i in 0 until group.length) {
+                                val format = group.getTrackFormat(i)
+                                audioOptions.add(
+                                    AudioTrackItem(
+                                        id = "${group.mediaTrackGroup.id}_$i",
+                                        label = buildAudioLabel(format, audioCounter++),
+                                        mediaTrackGroup = group.mediaTrackGroup,
+                                        trackIndex = i
+                                    )
+                                )
+                            }
+                        }
+                        availableAudio = audioOptions
+                        selectedAudioId = audioOptions.firstOrNull { item ->
+                            val group = audioGroups.firstOrNull {
+                                it.mediaTrackGroup.id == item.mediaTrackGroup.id
+                            } ?: return@firstOrNull false
+                            group.isTrackSelected(item.trackIndex)
+                        }?.id ?: audioOptions.firstOrNull()?.id
+
+                        val audioGroup = audioGroups.firstOrNull()
                         if (audioGroup == null) {
                             audioMimeType = null
                             audioTrackSupported = true
@@ -401,9 +458,9 @@ fun PlayerScreen(
     }
 
     LaunchedEffect(readyInfo?.url) {
-        val url = readyInfo?.url ?: return@LaunchedEffect
+        val info = readyInfo ?: return@LaunchedEffect
         playerError = null
-        player.setMediaItem(MediaItem.fromUri(url))
+        player.setMediaItem(buildMediaItem(info))
         player.prepare()
         player.play()
     }
@@ -418,16 +475,12 @@ fun PlayerScreen(
         }
     }
 
-    val onCycleSubtitle: () -> Unit = {
-        notifyInteraction()
-        if (availableSubtitles.size > 1) {
-            userChangedSubtitle = true
-            val currentIndex = availableSubtitles.indexOfFirst { it.id == selectedSubtitle.id }
-            val nextIndex = (if (currentIndex >= 0) currentIndex + 1 else 0) % availableSubtitles.size
-            val nextOption = availableSubtitles[nextIndex]
-            selectedSubtitle = nextOption
-            applySubtitleSelection(player, nextOption)
-        }
+    // Ya no se ciclan las pistas a ciegas: se abre el menú y se elige viendo
+    // la lista. Con 6 subtítulos en un release, "OK hasta que salga el español"
+    // era peor que no tener la función.
+    val openTrackMenu: (Boolean) -> Unit = { focusAudio ->
+        menuStartsWithAudio = focusAudio
+        trackMenuOpen = true
     }
 
     val subtitleButtonText = when {
@@ -437,7 +490,11 @@ fun PlayerScreen(
     }
 
     val handleKeyEvent: (androidx.compose.ui.input.key.KeyEvent) -> Boolean = { event ->
-        if (event.type == KeyEventType.KeyDown) {
+        // Con el menú de pistas abierto, las teclas son del menú (navegación y
+        // foco); la barra no debe reaccionar ni reabrirse.
+        if (trackMenuOpen) {
+            false
+        } else if (event.type == KeyEventType.KeyDown) {
             notifyInteraction()
             if (!controlsOpen) {
                 when (event.key) {
@@ -561,8 +618,16 @@ fun PlayerScreen(
                     notifyInteraction()
                     isFullScreenZoom = !isFullScreenZoom
                 },
+                audioLabel = shortAudioLabel(availableAudio, selectedAudioId),
                 subtitleLabel = subtitleButtonText,
-                onCycleSubtitle = onCycleSubtitle,
+                onOpenAudioTracks = {
+                    notifyInteraction()
+                    openTrackMenu(true)
+                },
+                onOpenSubtitleTracks = {
+                    notifyInteraction()
+                    openTrackMenu(false)
+                },
                 statusLine = statusLine,
                 statusIsError = playerError != null,
                 audioLine = audioText(audioMimeType, audioTrackSupported, audioReport),
@@ -571,6 +636,170 @@ fun PlayerScreen(
                 bufferedMs = bufferedMs,
                 onSeek = seekTo
             )
+        }
+
+        AnimatedVisibility(
+            visible = trackMenuOpen,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 28.dp, bottom = 168.dp)
+        ) {
+            TrackMenu(
+                audioOptions = availableAudio,
+                selectedAudioId = selectedAudioId,
+                subtitleOptions = availableSubtitles,
+                selectedSubtitleId = selectedSubtitle.id,
+                focusAudio = menuStartsWithAudio,
+                onSelectAudio = { item ->
+                    notifyInteraction()
+                    selectedAudioId = item.id
+                    applyAudioSelection(player, item)
+                    trackMenuOpen = false
+                },
+                onSelectSubtitle = { option ->
+                    notifyInteraction()
+                    userChangedSubtitle = true
+                    selectedSubtitle = option
+                    applySubtitleSelection(player, option)
+                    trackMenuOpen = false
+                },
+                onClose = { trackMenuOpen = false }
+            )
+        }
+    }
+}
+
+/**
+ * Menú de pistas: audio a la izquierda, subtítulos a la derecha.
+ *
+ * Cada opción es una tarjeta enfocable; la elegida se marca con un punto, para
+ * que se vea de un vistazo qué está sonando y qué subtítulo está activo sin
+ * volver a la barra.
+ */
+@Composable
+private fun TrackMenu(
+    audioOptions: List<AudioTrackItem>,
+    selectedAudioId: String?,
+    subtitleOptions: List<SubtitleOption>,
+    selectedSubtitleId: String,
+    focusAudio: Boolean,
+    onSelectAudio: (AudioTrackItem) -> Unit,
+    onSelectSubtitle: (SubtitleOption) -> Unit,
+    onClose: () -> Unit
+) {
+    val firstAudioFocus = remember { FocusRequester() }
+    val firstSubtitleFocus = remember { FocusRequester() }
+
+    // El nodo puede no estar adjunto en el primer frame del fade-in.
+    LaunchedEffect(focusAudio, audioOptions.size, subtitleOptions.size) {
+        val target = when {
+            focusAudio && audioOptions.isNotEmpty() -> firstAudioFocus
+            !focusAudio -> firstSubtitleFocus
+            audioOptions.isNotEmpty() -> firstAudioFocus
+            else -> return@LaunchedEffect
+        }
+        repeat(4) {
+            if (runCatching { target.requestFocus() }.isSuccess) return@LaunchedEffect
+            delay(50)
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color(0xF2101010))
+            .padding(horizontal = 20.dp, vertical = 18.dp)
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+            TrackColumn(
+                title = "Audio",
+                emptyText = "Sin pistas de audio",
+                options = audioOptions.map { item ->
+                    TrackEntry(
+                        id = item.id,
+                        label = item.label,
+                        selected = item.id == selectedAudioId
+                    )
+                },
+                firstFocus = firstAudioFocus,
+                onSelect = { id -> audioOptions.firstOrNull { it.id == id }?.let(onSelectAudio) }
+            )
+
+            TrackColumn(
+                title = "Subtítulos",
+                emptyText = "Sin subtítulos",
+                options = subtitleOptions.map { option ->
+                    TrackEntry(
+                        id = option.id,
+                        label = option.label,
+                        selected = option.id == selectedSubtitleId
+                    )
+                },
+                firstFocus = firstSubtitleFocus,
+                onSelect = { id -> subtitleOptions.firstOrNull { it.id == id }?.let(onSelectSubtitle) }
+            )
+        }
+    }
+}
+
+private data class TrackEntry(val id: String, val label: String, val selected: Boolean)
+
+@Composable
+private fun TrackColumn(
+    title: String,
+    emptyText: String,
+    options: List<TrackEntry>,
+    firstFocus: FocusRequester,
+    onSelect: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier.width(320.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelLarge,
+            color = StatusSecondary
+        )
+
+        if (options.isEmpty()) {
+            Text(
+                text = emptyText,
+                style = MaterialTheme.typography.bodySmall,
+                color = StatusSecondary
+            )
+            return@Column
+        }
+
+        options.forEachIndexed { index, entry ->
+            Card(
+                onClick = { onSelect(entry.id) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .then(if (index == 0) Modifier.focusRequester(firstFocus) else Modifier)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (entry.selected) "●" else " ",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = PillFocus
+                    )
+                    Text(
+                        text = entry.label,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
         }
     }
 }
@@ -589,8 +818,10 @@ private fun ControlBar(
     onTogglePlay: () -> Unit,
     isZoom: Boolean,
     onToggleZoom: () -> Unit,
+    audioLabel: String,
     subtitleLabel: String,
-    onCycleSubtitle: () -> Unit,
+    onOpenAudioTracks: () -> Unit,
+    onOpenSubtitleTracks: () -> Unit,
     statusLine: String,
     statusIsError: Boolean,
     audioLine: String,
@@ -677,8 +908,13 @@ private fun ControlBar(
                 )
 
                 ControlPill(
+                    text = audioLabel,
+                    onClick = onOpenAudioTracks
+                )
+
+                ControlPill(
                     text = subtitleLabel,
-                    onClick = onCycleSubtitle
+                    onClick = onOpenSubtitleTracks
                 )
             }
         }

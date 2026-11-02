@@ -21,16 +21,24 @@ import java.util.concurrent.atomic.AtomicBoolean
  *  - `Range: bytes=start-end`, `bytes=start-` y sufijo `bytes=-N`
  *    (crítico para MP4 con el átomo `moov` al final)
  *  - respuestas `206 Partial Content` con `Content-Range`
+ *  - varias rutas: el video en `/stream` y los subtítulos sueltos en `/sub/<n>`
+ *    (cualquier otra ruta es 404; el nombre de archivo lo escribe el enjambre,
+ *    así que el servidor no acepta rutas arbitrarias)
  */
 class HttpStreamServer(
     private val pieceLength: Long,
     private val numPieces: Int,
-    private val file: File,
-    private val fileOffsetInTorrent: Long,
-    private val fileSize: Long,
-    private val contentType: String,
+    file: File,
+    fileOffsetInTorrent: Long,
+    fileSize: Long,
+    contentType: String,
     private val pieces: PieceAvailability,
-    private val pieceTimeoutMs: Long = DEFAULT_PIECE_TIMEOUT_MS
+    private val pieceTimeoutMs: Long = DEFAULT_PIECE_TIMEOUT_MS,
+    /**
+     * Archivos que acompañan al video (los subtítulos sueltos del torrent). Se
+     * sirven por `/sub/<n>` con la misma espera de piezas que el video.
+     */
+    sidecars: List<SidecarFile> = emptyList()
 ) {
 
     private val serverSocket = ServerSocket(0, BACKLOG, InetAddress.getByName(LOOPBACK))
@@ -41,8 +49,30 @@ class HttpStreamServer(
     @Volatile
     private var lastLookaheadAt = 0L
 
+    /** El video, servido en `/stream`. */
+    private val primary = Served("/stream", file, fileOffsetInTorrent, fileSize, contentType)
+
+    /** Todo lo que este servidor sabe servir, indexado por ruta. */
+    private val served: List<Served> = buildList {
+        add(primary)
+        sidecars.forEachIndexed { index, sidecar ->
+            add(
+                Served(
+                    path = "/sub/$index",
+                    file = sidecar.file,
+                    fileOffsetInTorrent = sidecar.fileOffsetInTorrent,
+                    fileSize = sidecar.fileSize,
+                    contentType = sidecar.contentType
+                )
+            )
+        }
+    }
+
     val url: String
-        get() = "http://$LOOPBACK:$port/stream"
+        get() = "http://$LOOPBACK:$port${primary.path}"
+
+    /** URL del subtítulo `index`, en el orden en que llegaron los `sidecars`. */
+    fun sidecarUrl(index: Int): String = "http://$LOOPBACK:$port/sub/$index"
 
     private val port: Int
         get() = serverSocket.localPort
@@ -79,18 +109,24 @@ class HttpStreamServer(
                 val rangeHeader = readHeaders(reader)
 
                 val isHead = requestLine.startsWith("HEAD", ignoreCase = true)
-                val range = parseRange(rangeHeader, fileSize)
                 val output = client.getOutputStream()
 
+                val target = resolveTarget(requestLine)
+                if (target == null) {
+                    writeSimpleResponse(output, "404 Not Found")
+                    return
+                }
+
+                val range = parseRange(rangeHeader, target.fileSize)
                 if (range == null) {
                     writeSimpleResponse(output, "416 Range Not Satisfiable")
                     return
                 }
 
-                writeHeaders(output, range)
+                writeHeaders(output, range, target)
                 if (isHead) return
 
-                streamRange(output, range)
+                streamRange(output, range, target)
                 output.flush()
             } catch (error: Exception) {
                 // Cliente que se va, timeout de pieza, etc. No es fatal: la
@@ -111,16 +147,16 @@ class HttpStreamServer(
         return rangeHeader
     }
 
-    private fun writeHeaders(output: OutputStream, range: ByteRange) {
+    private fun writeHeaders(output: OutputStream, range: ByteRange, target: Served) {
         val header = if (range.partial) {
             "HTTP/1.1 206 Partial Content\r\n" +
-                "Content-Range: bytes ${range.start}-${range.end}/$fileSize\r\n"
+                "Content-Range: bytes ${range.start}-${range.end}/${target.fileSize}\r\n"
         } else {
             "HTTP/1.1 200 OK\r\n"
         }
         val payload = header +
             "Content-Length: ${range.length}\r\n" +
-            "Content-Type: $contentType\r\n" +
+            "Content-Type: ${target.contentType}\r\n" +
             "Accept-Ranges: bytes\r\n" +
             "Connection: close\r\n" +
             "\r\n"
@@ -138,17 +174,17 @@ class HttpStreamServer(
     // Streaming con espera de piezas
     // ---------------------------------------------------------------------
 
-    private fun streamRange(output: OutputStream, range: ByteRange) {
+    private fun streamRange(output: OutputStream, range: ByteRange, target: Served) {
         val lastPiece = (numPieces - 1).coerceAtLeast(0)
 
-        awaitFileOnDisk()
+        awaitFileOnDisk(target)
 
-        RandomAccessFile(file, "r").use { raf ->
+        RandomAccessFile(target.file, "r").use { raf ->
             var position = range.start
             val buffer = ByteArray(BUFFER_SIZE)
 
             while (position <= range.end && running.get()) {
-                val absoluteOffset = fileOffsetInTorrent + position
+                val absoluteOffset = target.fileOffsetInTorrent + position
                 val piece = (absoluteOffset / pieceLength).toInt().coerceIn(0, lastPiece)
 
                 if (!awaitPiece(piece, lastPiece)) {
@@ -207,11 +243,24 @@ class HttpStreamServer(
         }
     }
 
-    private fun awaitFileOnDisk() {
+    private fun awaitFileOnDisk(target: Served) {
         val deadline = System.currentTimeMillis() + FILE_APPEAR_TIMEOUT_MS
-        while (!file.exists() && System.currentTimeMillis() < deadline && running.get()) {
+        while (!target.file.exists() && System.currentTimeMillis() < deadline && running.get()) {
             Thread.sleep(POLL_INTERVAL_MS)
         }
+    }
+
+    /**
+     * Qué archivo pide la línea de request.
+     *
+     * Solo se aceptan las rutas que este servidor conoce: la primera línea
+     * viene de la red (aunque sea loopback) y no puede usarse para leer otra
+     * cosa del disco.
+     */
+    private fun resolveTarget(requestLine: String): Served? {
+        val path = requestLine.split(' ').getOrNull(1) ?: return null
+        val clean = path.substringBefore('?')
+        return served.firstOrNull { it.path == clean }
     }
 
     // ---------------------------------------------------------------------
@@ -252,6 +301,15 @@ class HttpStreamServer(
     private data class ByteRange(val start: Long, val end: Long, val partial: Boolean) {
         val length: Long get() = end - start + 1
     }
+
+    /** Un archivo servible: su ruta HTTP y cómo mapearlo al torrent. */
+    private data class Served(
+        val path: String,
+        val file: File,
+        val fileOffsetInTorrent: Long,
+        val fileSize: Long,
+        val contentType: String
+    )
 
     private companion object {
         const val LOOPBACK = "127.0.0.1"

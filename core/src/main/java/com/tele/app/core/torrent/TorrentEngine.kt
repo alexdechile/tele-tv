@@ -178,6 +178,11 @@ class TorrentEngine(
             return
         }
 
+        // Los subtítulos sueltos (.srt/.vtt/.ass) se sirven por el mismo
+        // servidor: ExoPlayer los pide como una URL más y el servidor espera la
+        // pieza igual que con el video.
+        val subtitles = prepareSubtitles(handle, torrentInfo, fileIndex, sessionDir)
+
         val server = HttpStreamServer(
             pieceLength = torrentInfo.pieceLength().toLong(),
             numPieces = torrentInfo.numPieces(),
@@ -185,7 +190,8 @@ class TorrentEngine(
             fileOffsetInTorrent = files.fileOffset(fileIndex),
             fileSize = fileSize,
             contentType = TorrentVideoFiles.contentTypeOf(fileName),
-            pieces = TorrentPieces(handle)
+            pieces = TorrentPieces(handle),
+            sidecars = subtitles.map { it.sidecar }
         )
         server.start()
 
@@ -200,7 +206,16 @@ class TorrentEngine(
                     url = server.url,
                     fileName = fileName,
                     fileSize = fileSize,
-                    torrentName = torrentInfo.name()
+                    torrentName = torrentInfo.name(),
+                    subtitles = subtitles.mapIndexed { index, prepared ->
+                        TorrentSubtitle(
+                            url = server.sidecarUrl(index),
+                            fileName = prepared.fileName,
+                            label = prepared.label,
+                            language = prepared.language,
+                            contentType = prepared.contentType
+                        )
+                    }
                 )
             )
         )
@@ -409,6 +424,61 @@ class TorrentEngine(
         StreamPriorities.boostHead(handle, firstPiece, lastPiece)
     }
 
+    /**
+     * Detecta los subtítulos sueltos del torrent y los deja listos para servir.
+     *
+     * `prepareDownload` deja todo lo que no es el video en IGNORE; acá esos
+     * archivos vuelven a `DEFAULT` para que se bajen. Son de pocos KB, así que
+     * llegan antes de que el usuario abra el menú de pistas.
+     *
+     * Las etiquetas repetidas se numeran: dos `.srt` en español sin más datos se
+     * verían idénticos en el menú, y elegir el equivocado es no ver nada.
+     */
+    private fun prepareSubtitles(
+        handle: TorrentHandle,
+        torrentInfo: TorrentInfo,
+        videoIndex: Int,
+        sessionDir: File
+    ): List<PreparedSubtitle> {
+        val files = torrentInfo.files()
+        val seenLabels = mutableMapOf<String, Int>()
+        val result = mutableListOf<PreparedSubtitle>()
+
+        for (index in 0 until torrentInfo.numFiles()) {
+            if (index == videoIndex) continue
+            val name = runCatching { files.fileName(index) }.getOrNull() ?: continue
+            if (!TorrentSubtitles.isSubtitle(name)) continue
+
+            val path = TorrentPaths.resolveWithin(sessionDir, files.filePath(index)) ?: continue
+            val size = files.fileSize(index)
+            if (size <= 0L) continue
+
+            runCatching { handle.filePriority(index, Priority.DEFAULT) }
+
+            val baseLabel = TorrentSubtitles.labelOf(name)
+            val repeated = (seenLabels[baseLabel] ?: 0) + 1
+            seenLabels[baseLabel] = repeated
+            val label = if (repeated == 1) baseLabel else "$baseLabel ($repeated)"
+
+            result += PreparedSubtitle(
+                fileName = name,
+                label = label,
+                language = TorrentSubtitles.languageOf(name),
+                contentType = TorrentSubtitles.contentTypeOf(name),
+                sidecar = SidecarFile(
+                    file = path,
+                    fileOffsetInTorrent = files.fileOffset(index),
+                    fileSize = size,
+                    contentType = TorrentSubtitles.contentTypeOf(name)
+                )
+            )
+
+            if (result.size >= TorrentSubtitles.MAX_SUBTITLES) break
+        }
+
+        return result
+    }
+
     private fun emitProgress(handle: TorrentHandle): TorrentStreamState.Progress? = try {
         val status = handle.status()
         val progress = TorrentStreamState.Progress(
@@ -436,6 +506,15 @@ class TorrentEngine(
     } catch (error: Exception) {
         null
     }
+
+    /** Subtítulo detectado, antes de tener la URL del servidor. */
+    private data class PreparedSubtitle(
+        val fileName: String,
+        val label: String,
+        val language: String?,
+        val contentType: String,
+        val sidecar: SidecarFile
+    )
 
     private companion object {
         const val METADATA_TIMEOUT_MS = 60_000L

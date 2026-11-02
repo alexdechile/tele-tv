@@ -24,8 +24,8 @@ App de streaming de video por torrents para **Android TV** (solo TV: no móvil, 
 | M2 | Motor de torrents (LibTorrent4j) + reproductor ExoPlayer + CI verde | ✅ Hecho |
 | M3 | Cliente de addons Stremio v3, home con foco D-pad, detalle con fuentes, reproductor real | ✅ Hecho |
 | M4 | Motor real: sesión libtorrent nativa + servidor HTTP local con `Range` + descarga secuencial | ✅ Hecho |
-| M5 | Persistencia y ajustes: Room (favoritos, historial, progreso), gestión de addons desde la UI | ⏳ Pendiente |
-| M6 | Pulido TV: búsqueda por teclado en pantalla, grid de catálogo, subtítulos/audio, skeleton de carga | ⏳ Pendiente |
+| M5 | Persistencia y ajustes: Room (favoritos, historial, progreso), gestión de addons desde la UI | ⏭️ Saltado por decisión de Alex: no quiere que la app guarde datos; se desinstala e instala |
+| M6 | Pulido TV: búsqueda por teclado en pantalla, grid de catálogo, subtítulos/audio, skeleton de carga | ✅ Hecho |
 
 ### Qué está verificado y qué no
 
@@ -41,6 +41,12 @@ Verificado en CI (`./gradlew :tv:assembleDebug :core:test`):
 - `StreamCompletionTest`: la subida se corta cuando el archivo elegido está entero en disco,
   y no antes. Se mide con los bytes **del archivo** (`fileProgress`), no con el promedio del
   torrent, que con los demás archivos en `IGNORE` nunca llega a 100 %.
+- `TorrentSubtitlesTest`: reconoce `.srt`/`.vtt`/`.ass` y saca el idioma del nombre del
+  release (`Pelicula.2023.es.srt` → español), sin confundir `It.2017.srt` con italiano.
+- `HttpStreamServerTest`: además del video, sirve los subtítulos sueltos por `/sub/<n>` y
+  responde 404 a cualquier otra ruta.
+- `TrackLabelsTest` (`:tv:test`): etiquetas del menú de pistas ("Español · AC3 · 5.1",
+  "Inglés [SDH]"), que es lo que hace usable el selector de audio y subtítulos.
 
 Verificado a mano contra un enjambre real (Big Buck Bunny, sin dispositivo):
 
@@ -50,6 +56,19 @@ Verificado a mano contra un enjambre real (Big Buck Bunny, sin dispositivo):
 
 No verificado todavía: reproducción real en una TV/emulador, rendimiento del streaming
 con buffer corto, subtítulos y selección de audio.
+
+### M6: pulido de TV
+
+- **Vista de catálogo**: botón en la cabecera que alterna entre filas (carruseles por
+  categoría) y **cuadrícula** con todo el catálogo, navegable con D-pad.
+- **Skeletons**: el home, la grilla del buscador y la búsqueda de fuentes dibujan la forma de
+  lo que va a llegar (carátulas, filas, fichas) en vez de un texto centrado.
+- **Menú de pistas**: botones "Audio: …" y "Subtítulos: …" abren un menú con las pistas del
+  contenedor, con idioma, códec y canales (`Español · AC3 · 5.1`). Ya no se ciclan a ciegas.
+- **Subtítulos sueltos del torrent**: los `.srt`/`.vtt`/`.ass` que acompañan al video se
+  detectan, se bajan y el servidor local los sirve en `/sub/<n>`; ExoPlayer los carga como
+  subtítulos externos con su idioma (deducido del nombre del release). El español se
+  elige solo si existe.
 
 ### Audio en TV box (AC3/E-AC3/DTS)
 

@@ -50,6 +50,7 @@ import com.tele.app.data.addon.model.MediaType
 import com.tele.app.data.addon.model.MetaPreview
 import com.tele.app.data.addon.model.SearchFilters
 import com.tele.app.data.addon.model.SortOrder
+import com.tele.app.tv.ui.components.SkeletonGrid
 import kotlin.math.round
 
 /**
@@ -497,13 +498,13 @@ private fun ResultsArea(
                 }
             }
 
-            state.loading -> Hint("Buscando en los catálogos…")
+            state.loading -> SkeletonGrid()
 
             state.error != null -> Hint("No se pudo buscar: ${state.error}")
 
             state.isEmptyResult -> Hint("Sin resultados. Probá con otro género, otra década o menos filtros.")
 
-            else -> Hint("Cargando lo más popular…")
+            else -> SkeletonGrid()
         }
     }
 }

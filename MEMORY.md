@@ -175,6 +175,42 @@ terminar la descarga?" → sí, y quedó implementado (`StreamCompletion` + `Tor
 - **Tests:** `StreamCompletionTest` (JVM puro) — completo exacto, de más, tamaño 0, archivo
   elegido vs. los demás, índice fuera de rango y `pause()` que revienta.
 
+## M6 cerrado: pulido de TV (2026-11-01)
+
+**Decisión de Alex:** M5 **se salta**. No quiere favoritos, historial ni que la app guarde
+datos; desinstalar e instalar le parece mejor experiencia. Consecuencia práctica: el choque
+de firmas del debug keystore (cada run de CI firma distinto) **no se arregla**, se asume: se
+desinstala y se instala.
+
+Lo que se hizo:
+
+- **Cuadrícula de catálogo** (`MainScreen`): alterna filas ⇄ `LazyVerticalGrid` con
+  `GridCells.Adaptive(180.dp)` desde un botón de la cabecera. El modo vive en
+  `rememberSaveable` (no hay persistencia, es preferencia de sesión).
+- **Skeletons** (`ui/components/Skeleton.kt`): latido de opacidad con
+  `rememberInfiniteTransition` (no de color, así funciona en tema claro y oscuro). Se usan en
+  home (`SkeletonCatalog`), grilla de búsqueda (`SkeletonGrid`) y fuentes del detalle
+  (`SkeletonDetail`). Antes eran textos centrados que a 3 metros se leen como "se colgó".
+- **Menú de pistas** (`PlayerScreen.TrackMenu`): audio y subtítulos del contenedor en dos
+  columnas, con etiqueta `idioma · códec · canales`; se elige con OK y cierra. Reemplaza el
+  ciclado a ciegas del botón de subtítulos (con 6 pistas era adivinanza).
+  Selección real con `TrackSelectionOverride` sobre el `TrackGroup` (audio) y
+  `setTrackTypeDisabled` + override (texto).
+- **Subtítulos sueltos del torrent**: `TorrentSubtitles` (formato + idioma del nombre:
+  `Pelicula.2023.es.srt` → `es`), `SidecarFile`, y `HttpStreamServer` ahora enruta
+  `/stream` y `/sub/<n>` (cualquier otra ruta → 404). Los subtítulos van como
+  `MediaItem.SubtitleConfiguration` con su `mimeType`, así que Media3 los parsea.
+  `.sub` (microDVD) queda fuera a propósito: Media3 no trae parser.
+- **Búsqueda por teclado**: ya estaba hecha (teclado en pantalla `LETTER_ROWS` + captura de
+  teclas físicas en `SearchScreen`); se cerró el hito con esa parte sin cambios.
+
+**Trampa del idioma en el nombre del archivo:** `It.2017.srt` no es italiano y `De.La.Nada.srt`
+no es alemán. La heurística es: primero el token antes de la extensión, después el resto
+**salteando el primero** (ahí va el título).
+
+**Tests nuevos:** `TorrentSubtitlesTest`, casos de sidecar/404 en `HttpStreamServerTest`,
+`StreamCompletionTest` y `TrackLabelsTest` (`:tv:test`, que se agregó al CI).
+
 ## Ruta del torrent y datos de la app (`6277deb`)
 
 - **Path traversal cerrado:** el nombre de archivo dentro de un torrent lo escribe el enjambre.

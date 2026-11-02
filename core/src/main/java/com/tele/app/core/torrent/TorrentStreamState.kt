@@ -5,7 +5,13 @@ data class TorrentStreamInfo(
     val url: String,
     val fileName: String,
     val fileSize: Long,
-    val torrentName: String
+    val torrentName: String,
+    /**
+     * Subtítulos sueltos que venían en el torrent, ya servidos por el servidor
+     * local. Vacío si el release no trajo ninguno (en ese caso solo quedan los
+     * que vengan embebidos en el contenedor).
+     */
+    val subtitles: List<TorrentSubtitle> = emptyList()
 )
 
 /** Estado del motor de torrents mientras prepara y sirve el video. */

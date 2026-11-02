@@ -50,6 +50,7 @@ import com.tele.app.data.addon.model.StreamSource
 import com.tele.app.data.enrich.EnrichedInfo
 import com.tele.app.data.enrich.WikipediaEnricher
 import com.tele.app.tv.ui.AppGraph
+import com.tele.app.tv.ui.components.SkeletonDetail
 import kotlinx.coroutines.CancellationException
 import kotlin.math.round
 
@@ -749,7 +750,7 @@ private fun StreamsList(
 
         when (state) {
             null, StreamsState.Loading -> item(key = "estado") {
-                Hint("Buscando fuentes en los addons…")
+                SkeletonDetail()
             }
 
             StreamsState.Empty -> item(key = "estado") {

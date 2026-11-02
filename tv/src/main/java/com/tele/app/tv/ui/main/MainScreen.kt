@@ -8,14 +8,23 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -32,6 +41,7 @@ import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import com.tele.app.data.addon.model.HomeRow
 import com.tele.app.data.addon.model.MetaPreview
+import com.tele.app.tv.ui.components.SkeletonCatalog
 
 /** Home de la TV: filas de carátulas navegables con el D-pad. */
 @Composable
@@ -44,17 +54,12 @@ fun MainScreen(
 ) {
     Surface(modifier = modifier.fillMaxSize()) {
         when (state) {
-            HomeState.Loading -> CenteredMessage("Cargando catálogo…")
+            // Esqueleto en vez de "Cargando catálogo…": la forma de lo que viene
+            // dice "está trabajando", no "se colgó".
+            HomeState.Loading -> SkeletonCatalog()
             is HomeState.Error -> ErrorPanel(state.message, onRetry)
             is HomeState.Content -> CatalogContent(state.rows, onItemSelected, onOpenSearch)
         }
-    }
-}
-
-@Composable
-private fun CenteredMessage(message: String) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(text = message, style = MaterialTheme.typography.titleLarge)
     }
 }
 
@@ -80,47 +85,107 @@ private fun ErrorPanel(message: String, onRetry: () -> Unit) {
     }
 }
 
+/**
+ * Catálogo con dos formas de mirarlo:
+ *
+ *  - **filas**, la de siempre: un carrusel por categoría, para picotear;
+ *  - **cuadrícula**, todo el catálogo junto, para barrer con el D-pad cuando ya
+ *    se sabe qué buscar.
+ *
+ * El modo vive en `rememberSaveable`: volver del detalle no lo devuelve a filas.
+ * No se guarda en disco a propósito: es una preferencia de sesión y la app no
+ * persiste nada.
+ */
 @Composable
 private fun CatalogContent(
     rows: List<HomeRow>,
     onItemSelected: (MetaPreview) -> Unit,
     onOpenSearch: () -> Unit
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 48.dp, vertical = 36.dp),
-        verticalArrangement = Arrangement.spacedBy(32.dp)
-    ) {
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
-                Text(
-                    text = "Tele TV",
-                    style = MaterialTheme.typography.displaySmall,
-                    color = MaterialTheme.colorScheme.onSurface
+    var gridMode by rememberSaveable { mutableStateOf(false) }
+
+    val header: @Composable () -> Unit = {
+        HeaderRow(
+            onOpenSearch = onOpenSearch,
+            gridMode = gridMode,
+            onToggleGrid = { gridMode = !gridMode }
+        )
+    }
+
+    if (gridMode) {
+        val allItems = remember(rows) { rows.flatMap { it.items }.distinctBy { it.id } }
+        val firstCardRequester = remember { FocusRequester() }
+
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 180.dp),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 48.dp, vertical = 36.dp),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            item(key = "header", span = { GridItemSpan(maxLineSpan) }) {
+                Box(modifier = Modifier.padding(bottom = 12.dp)) { header() }
+            }
+            gridItemsIndexed(allItems, key = { _, item -> item.id }) { index, item ->
+                PosterCard(
+                    item = item,
+                    initialFocusRequester = if (index == 0) firstCardRequester else null,
+                    onClick = { onItemSelected(item) }
                 )
-                Text(
-                    text = "Un buscador avanzado para encontrar qué ver",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f)
-                )
-                Card(onClick = onOpenSearch, modifier = Modifier.width(240.dp).height(64.dp)) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(text = "Buscar en el catálogo", style = MaterialTheme.typography.titleMedium)
-                    }
-                }
             }
         }
-        items(rows, key = { it.id }) { row ->
-            CatalogRow(
-                row = row,
-                requestInitialFocus = row.id == rows.firstOrNull()?.id,
-                onItemSelected = onItemSelected
-            )
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 48.dp, vertical = 36.dp),
+            verticalArrangement = Arrangement.spacedBy(32.dp)
+        ) {
+            item { header() }
+            items(rows, key = { it.id }) { row ->
+                CatalogRow(
+                    row = row,
+                    requestInitialFocus = row.id == rows.firstOrNull()?.id,
+                    onItemSelected = onItemSelected
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeaderRow(
+    onOpenSearch: () -> Unit,
+    gridMode: Boolean,
+    onToggleGrid: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(24.dp)
+    ) {
+        Text(
+            text = "Tele TV",
+            style = MaterialTheme.typography.displaySmall,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = "Un buscador avanzado para encontrar qué ver",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f)
+        )
+        Card(onClick = onToggleGrid, modifier = Modifier.width(260.dp).height(64.dp)) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    text = if (gridMode) "Vista: Filas" else "Vista: Cuadrícula",
+                    style = MaterialTheme.typography.titleSmall
+                )
+            }
+        }
+        Card(onClick = onOpenSearch, modifier = Modifier.width(240.dp).height(64.dp)) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(text = "Buscar en el catálogo", style = MaterialTheme.typography.titleMedium)
+            }
         }
     }
 }

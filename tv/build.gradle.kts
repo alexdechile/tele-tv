@@ -66,4 +66,7 @@ dependencies {
 
     implementation(project(":core"))
     implementation(project(":data"))
+
+    // Pruebas JVM de lógica pura de la UI (etiquetas del menú de pistas).
+    testImplementation(libs.junit)
 }

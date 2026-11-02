@@ -33,7 +33,8 @@ class HttpStreamServerTest {
         size: Long,
         pieces: PieceAvailability,
         pieceTimeoutMs: Long = 5_000,
-        fileOffsetInTorrent: Long = 0
+        fileOffsetInTorrent: Long = 0,
+        sidecars: List<SidecarFile> = emptyList()
     ): HttpStreamServer {
         val server = HttpStreamServer(
             pieceLength = PIECE_LENGTH,
@@ -43,7 +44,8 @@ class HttpStreamServerTest {
             fileSize = size,
             contentType = "video/x-matroska",
             pieces = pieces,
-            pieceTimeoutMs = pieceTimeoutMs
+            pieceTimeoutMs = pieceTimeoutMs,
+            sidecars = sidecars
         )
         server.start()
         return server
@@ -215,6 +217,52 @@ class HttpStreamServerTest {
 
             assertEquals(200, response.code)
             assertArrayEquals(bytes, response.body)
+        } finally {
+            server.stop()
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // Subtítulos sueltos (sidecars)
+    // -----------------------------------------------------------------
+
+    @Test
+    fun `sirve el subtitulo por su propia ruta`() {
+        val (video, _) = tempFileWithSize(4_096)
+        val (subtitle, subtitleBytes) = tempFileWithSize(120)
+        val server = startServer(
+            file = video,
+            size = 4_096,
+            pieces = allPiecesAvailable,
+            sidecars = listOf(
+                SidecarFile(
+                    file = subtitle,
+                    fileOffsetInTorrent = 4_096,
+                    fileSize = subtitleBytes.size.toLong(),
+                    contentType = "application/x-subrip"
+                )
+            )
+        )
+        try {
+            val response = request(server.sidecarUrl(0))
+
+            assertEquals(200, response.code)
+            assertEquals("application/x-subrip", response.headers["content-type"])
+            assertArrayEquals(subtitleBytes, response.body)
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
+    fun `una ruta desconocida responde 404`() {
+        val (video, _) = tempFileWithSize(1_024)
+        val server = startServer(file = video, size = 1_024, pieces = allPiecesAvailable)
+        try {
+            // El servidor solo conoce /stream y /sub/N: nada de leer rutas
+            // arbitrarias del disco aunque venga por loopback.
+            val response = request(server.url.replace("/stream", "/etc/passwd"))
+            assertEquals(404, response.code)
         } finally {
             server.stop()
         }
