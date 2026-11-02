@@ -75,7 +75,6 @@ import androidx.media3.exoplayer.audio.AudioCapabilities
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
-import androidx.tv.material3.Card
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.tele.app.core.torrent.TorrentEngine
@@ -85,6 +84,7 @@ import com.tele.app.tv.R
 import com.tele.app.tv.audio.AudioAwareRenderersFactory
 import com.tele.app.tv.audio.AudioSupportReport
 import com.tele.app.tv.audio.readAudioSupport
+import com.tele.app.tv.ui.components.TeleCard
 import com.tele.app.tv.ui.navigation.PlaybackRequest
 import kotlinx.coroutines.delay
 import java.io.File
@@ -774,7 +774,7 @@ private fun TrackColumn(
         }
 
         options.forEachIndexed { index, entry ->
-            Card(
+            TeleCard(
                 onClick = { onSelect(entry.id) },
                 modifier = Modifier
                     .fillMaxWidth()

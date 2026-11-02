@@ -323,6 +323,43 @@ no es alemán. La heurística es: primero el token antes de la extensión, despu
       navegador de temporadas para no robarle alto a los episodios). Si molesta, el mismo patrón
       de `wikiExpanded` se puede aplicar ahí.
 
+## Tablet: el toque no disparaba nada (`feat/tactil-tablet`, 2026-11-01)
+
+**Pedido:** "la app funciona perfecta en la TV pero no sirve en el tablet… me importa que se pueda
+usar en el tablet y en el tvbox". En la tablet la app abría y se veía bien, pero **nada respondía
+al tacto**.
+
+- **Causa medida, no supuesta:** `androidx.tv:tv-material:1.0.0` implementa el clic de
+  `Surface`/`Card` con `Modifier.focusable` + `Modifier.onKeyEvent` (`handleDPadEnter`), y **no**
+  con `clickable`. Verificado con `javap` sobre el AAR de la caché de Gradle (`SurfaceKt` llama a
+  `handleDPadEnter$default` y `FocusableKt.focusable`; cero `pointerInput`/`clickable`). Un dedo no
+  produce foco ni tecla, así que no hay nada que dispare el `onClick`. En la TV funciona porque el
+  D-pad mueve el foco y `ENTER`/`DPAD_CENTER` llega al `onKeyEvent`.
+- **Por qué el reproductor sí andaba al tacto:** `PlayerScreen` usa `pointerInput` en la raíz y
+  `Modifier.clickable` en las píldoras de control. Era la excepción que confirmaba la regla.
+- **Arreglo:** `ui/components/TeleCard.kt` — wrapper de `Card` que suma `detectTapGestures` sin
+  crear un segundo nodo enfocable (un `clickable` ahí rompería el orden del foco del D-pad) y pide
+  el foco al tocar, así la tarjeta muestra su borde/glow y el D-pad queda parado en ella. Se
+  reemplazaron los 14 `Card(onClick)` de `MainActivity`, `MainScreen`, `SearchScreen`,
+  `DetailScreen` y `PlayerScreen` (menú de pistas). Efecto colateral bueno: el **clic de mouse** en
+  el KM6 también quedó arreglado (ese era un pendiente de la lista).
+- **Barras del sistema:** `MainActivity` decide en `onCreate` con `isTelevision()` (leanback o
+  `UI_MODE_TYPE_TELEVISION`). En la TV sigue en pantalla completa inmersiva; en tablet devuelve
+  `FLAG_FULLSCREEN`, `setDecorFitsSystemWindows(true)` y muestra las barras. Sin eso no había botón
+  atrás visible y la app quedaba sin salida.
+- **Verificado en dispositivo** (APK del CI `41370907780`, build+smoke verdes):
+  - **Lenovo YT-X705F** (Android 9, 1200x1920, 240 dpi) — tacto de punta a punta: tocar carátula
+    abre el detalle; "Ver ficha completa" expande; back vuelve; "Buscar en el catálogo" abre con 42
+    resultados; tocar letras del teclado en pantalla escribe la consulta (KIQ → 25 resultados);
+    "Listo" cierra; tocar un resultado abre su ficha; tocar una fuente **arranca la reproducción**
+    (470 KB/s, 7 peers, el video se ve) y al salir `cache/torrents` queda en **0**.
+    Capturas: `docs/captura-tablet-detalle.png`, `docs/captura-tablet-reproduciendo.png`.
+  - **KM6** — el D-pad sigue igual (flecha + OK abre la ficha, primera fuente enfocada) y ahora el
+    clic de mouse también funciona: un `input tap` sobre "Vista: Cuadrícula" cambió el modo.
+- **Ojo:** las tasas de captura por adb mientras la tablet tiene el PIN puesto muestran basura (la
+  pantalla de bloqueo); hay que desbloquearla primero. Y `input tap` inyecta eventos de toque, no
+  de mouse: sirve igual para este caso porque ambos pasan por `pointerInput`.
+
 ## Historial anterior
 
 1. **Crash de inicio (ClassNotFoundException Hilt_TeleTvApp):** se removió `@HiltAndroidApp`

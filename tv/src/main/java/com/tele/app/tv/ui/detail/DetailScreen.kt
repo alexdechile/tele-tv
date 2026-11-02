@@ -36,7 +36,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.Card
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
@@ -53,6 +52,7 @@ import com.tele.app.tv.ui.AppGraph
 import com.tele.app.tv.ui.components.SkeletonDetail
 import kotlinx.coroutines.CancellationException
 import kotlin.math.round
+import com.tele.app.tv.ui.components.TeleCard
 
 /** Estado de la búsqueda de fuentes. */
 sealed interface StreamsState {
@@ -426,7 +426,7 @@ private fun PersonChip(
     role: String,
     onClick: () -> Unit
 ) {
-    Card(
+    TeleCard(
         onClick = onClick,
         modifier = Modifier.height(36.dp)
     ) {
@@ -467,7 +467,7 @@ private fun PlatformChip(
     }
     val label = if (isFilmin) "Ver en Filmin" else "Ver en $name"
 
-    Card(
+    TeleCard(
         onClick = onClick,
         modifier = Modifier.height(36.dp)
     ) {
@@ -615,7 +615,7 @@ private fun SeasonBrowser(
 
 @Composable
 private fun EpisodeRow(episode: Episode, onClick: () -> Unit) {
-    Card(
+    TeleCard(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
@@ -656,7 +656,7 @@ private fun EpisodeRow(episode: Episode, onClick: () -> Unit) {
 /** Píldora enfocable (mismo patrón que el resto de la app: `Card`, que ya trae foco). */
 @Composable
 private fun Pill(text: String, onClick: () -> Unit) {
-    Card(onClick = onClick, modifier = Modifier.height(48.dp)) {
+    TeleCard(onClick = onClick, modifier = Modifier.height(48.dp)) {
         Box(
             modifier = Modifier
                 .fillMaxHeight()
@@ -789,7 +789,7 @@ private fun StreamCard(
     onClick: () -> Unit,
     focusRequester: FocusRequester? = null
 ) {
-    Card(
+    TeleCard(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
