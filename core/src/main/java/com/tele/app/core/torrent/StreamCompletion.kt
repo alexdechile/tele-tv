@@ -12,7 +12,7 @@ package com.tele.app.core.torrent
  * **La señal correcta no es `status.progress()`:** ese número promedia el
  * torrent completo, y los demás archivos van en `Priority.IGNORE`, así que
  * puede no llegar nunca a 100 %. Tampoco existe `progressWanted()` en
- * libtorrent4j 2.1.0-39 (la API de libtorrent que expone esa métrica no está
+ * jlibtorrent 2.0.15.3 (la API de libtorrent que expone esa métrica no está
  * envuelta acá). Lo que sí hay es `TorrentHandle.fileProgress()`, que devuelve
  * los bytes bajados **por archivo**: cuando igualan el tamaño del archivo
  * elegido, el video está entero en disco.
