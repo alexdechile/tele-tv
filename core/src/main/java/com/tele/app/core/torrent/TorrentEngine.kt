@@ -170,9 +170,19 @@ class TorrentEngine(
         // reacomoda al entrar peers nuevos y sin esto la ventana se diluye.
         val pieceDeadline = System.currentTimeMillis() + FIRST_PIECE_TIMEOUT_MS
         val waitStart = System.currentTimeMillis()
+        val head = StreamPriorities.headPieces(firstPiece, lastPiece)
+        var headReported = 0L
         while (currentCoroutineContext().isActive && !handle.havePiece(firstPiece)) {
             StreamPriorities.boostHead(handle, firstPiece, lastPiece)
             emitProgress(handle)?.let { emit(it) }
+            // Cuántas piezas del inicio ya están: distingue "el head avanza en
+            // orden, lento" de "libtorrent ignora el head y baja otra cosa".
+            val nowHead = System.currentTimeMillis()
+            if (nowHead - headReported >= DIAGNOSTIC_INTERVAL_MS) {
+                headReported = nowHead
+                val got = head.count { runCatching { handle.havePiece(it) }.getOrDefault(false) }
+                onDiagnostic?.invoke("head: $got/${head.last - head.first + 1} piezas del inicio")
+            }
             if (System.currentTimeMillis() >= pieceDeadline) break
             delay(PROGRESS_INTERVAL_MS)
         }
