@@ -1,6 +1,6 @@
 package com.tele.app.core.torrent
 
-import org.libtorrent4j.FileStorage
+import com.frostwire.jlibtorrent.FileStorage
 
 /** Elección del archivo de video dentro de un torrent. */
 object TorrentVideoFiles {

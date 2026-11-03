@@ -1,7 +1,7 @@
 package com.tele.app.core.torrent
 
-import org.libtorrent4j.Priority
-import org.libtorrent4j.TorrentHandle
+import com.frostwire.jlibtorrent.Priority
+import com.frostwire.jlibtorrent.TorrentHandle
 
 /**
  * Abstracción de "qué piezas del torrent ya están en disco".

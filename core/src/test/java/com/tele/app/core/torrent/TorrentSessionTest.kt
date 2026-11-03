@@ -5,11 +5,11 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.libtorrent4j.AddTorrentParams
-import org.libtorrent4j.LibTorrent
-import org.libtorrent4j.SessionManager
-import org.libtorrent4j.swig.settings_pack
-import org.libtorrent4j.swig.torrent_flags_t
+import com.frostwire.jlibtorrent.AddTorrentParams
+import com.frostwire.jlibtorrent.LibTorrent
+import com.frostwire.jlibtorrent.SessionManager
+import com.frostwire.jlibtorrent.swig.settings_pack
+import com.frostwire.jlibtorrent.swig.torrent_flags_t
 import java.io.File
 
 /**
@@ -41,7 +41,7 @@ class TorrentSessionTest {
             assertTrue("la sesion deberia estar corriendo", session.isRunning())
 
             val params = AddTorrentParams.parseMagnetUri(magnet)
-            val infoHash = params.infoHashes.best
+            val infoHash = params.infoHashes.getBest()
             assertNotNull("el magnet deberia exponer un info hash", infoHash)
             assertEquals(
                 "dd8255ecdc7ca55fb0bbf81323d87062db1f6d1c",

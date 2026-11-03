@@ -12,6 +12,7 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         gradlePluginPortal()
+        maven { url = uri("https://dl.frostwire.com/maven") }
     }
 }
 

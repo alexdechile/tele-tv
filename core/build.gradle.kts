@@ -22,19 +22,17 @@ android {
 }
 
 dependencies {
-    // api: el motor expone tipos de libtorrent4j a :tv a traves del flujo de estado
-    api(libs.libtorrent4j)
-    // Binarios nativos: TV reales (arm64-v8a, armeabi-v7a para TV boxes de 32-bit) y emulador (x86_64)
-    runtimeOnly(libs.libtorrent4jNativeArm)
-    runtimeOnly(libs.libtorrent4jNativeArm64)
-    runtimeOnly(libs.libtorrent4jNativeX64)
+    // api: el motor expone tipos de jlibtorrent a :tv a traves del flujo de estado
+    api(libs.jlibtorrent)
+    // AAR con clases Java + binarios nativos para arm64-v8a, armeabi-v7a, x86, x86_64
+    runtimeOnly(libs.jlibtorrentAndroid)
     implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.junit)
 }
 
 // En la JVM de los tests usamos el binario nativo de Linux para ejercitar
-// libtorrent4j de verdad (las .so de Android son bionic y no cargan aca).
+// jlibtorrent de verdad (las .so de Android son bionic y no cargan aca).
 val linuxNative: Configuration by configurations.creating {
     isCanBeConsumed = false
     isCanBeResolved = true
@@ -42,15 +40,16 @@ val linuxNative: Configuration by configurations.creating {
 }
 
 dependencies {
-    add(linuxNative.name, libs.libtorrent4jNativeLinux)
+    // El AAR no incluye linux; usamos el jar nativo linux separado para tests JVM
+    add(linuxNative.name, "com.frostwire:jlibtorrent-linux-x86_64:2.0.15.3")
 }
 
 val nativeTestDir = layout.buildDirectory.dir("native-test")
 
-// Extrae lib/x86_64/libtorrent4j.so del jar de Linux para que la JVM lo cargue.
+// Extrae lib/x86_64/libjlibtorrent.so del jar de Linux para que la JVM lo cargue.
 val extractLinuxNative = tasks.register<Copy>("extractLinuxNative") {
     from({
-        val jar = linuxNative.files.first { it.name.startsWith("libtorrent4j-linux") }
+        val jar = linuxNative.files.first { it.name.startsWith("jlibtorrent-linux") }
         zipTree(jar)
     }) {
         include("lib/x86_64/*.so")

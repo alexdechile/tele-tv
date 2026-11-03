@@ -8,13 +8,15 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.isActive
-import org.libtorrent4j.AddTorrentParams
-import org.libtorrent4j.Priority
-import org.libtorrent4j.SessionManager
-import org.libtorrent4j.Sha1Hash
-import org.libtorrent4j.TorrentHandle
-import org.libtorrent4j.TorrentInfo
-import org.libtorrent4j.swig.torrent_flags_t
+import com.frostwire.jlibtorrent.AddTorrentParams
+import com.frostwire.jlibtorrent.InfoHash
+import com.frostwire.jlibtorrent.Priority
+import com.frostwire.jlibtorrent.SessionManager
+import com.frostwire.jlibtorrent.Sha1Hash
+import com.frostwire.jlibtorrent.Sha256Hash
+import com.frostwire.jlibtorrent.TorrentHandle
+import com.frostwire.jlibtorrent.TorrentInfo
+import com.frostwire.jlibtorrent.swig.torrent_flags_t
 import java.io.File
 import java.util.concurrent.Executors
 
@@ -347,8 +349,8 @@ class TorrentEngine(
     }
 
     /** Nombre de directorio sin nada raro: solo letras y dígitos del hash. */
-    private fun safeDirName(infoHash: Sha1Hash): String =
-        infoHash.toString().filter { it.isLetterOrDigit() }.lowercase().ifEmpty { "sin-hash" }
+    private fun safeDirName(infoHash: InfoHash): String =
+        infoHash.getBest().toString().filter { it.isLetterOrDigit() }.lowercase().ifEmpty { "sin-hash" }
 
     private fun ensureSession(): SessionManager = synchronized(lock) {
         sessionManager ?: SessionManager().also { manager ->
@@ -360,19 +362,24 @@ class TorrentEngine(
         }
     }
 
-    private fun parseInfoHash(magnetUri: String): Sha1Hash? = try {
-        AddTorrentParams.parseMagnetUri(magnetUri).infoHashes.best
+    private fun parseInfoHash(magnetUri: String): InfoHash? = try {
+        AddTorrentParams.parseMagnetUri(magnetUri).infoHashes
     } catch (error: Exception) {
         null
     }
 
     /** Espera a que libtorrent tenga el `torrent_info` (metadatos listos). */
-    private suspend fun awaitTorrent(manager: SessionManager, infoHash: Sha1Hash): TorrentHandle? {
+    private suspend fun awaitTorrent(manager: SessionManager, infoHash: InfoHash): TorrentHandle? {
         val deadline = System.currentTimeMillis() + METADATA_TIMEOUT_MS
         var lastDiagnostic = 0L
         while (System.currentTimeMillis() < deadline) {
             val handle = try {
-                manager.find(infoHash)
+                // Preferir v2 (SHA-256) para seguridad; fallback a v1
+                val sha256 = infoHash.getV2()
+                val sha1 = infoHash.getV1()
+                var h = if (infoHash.hasV2()) manager.find(sha256) else manager.find(sha1)
+                if (h == null && infoHash.hasV1()) h = manager.find(sha1)
+                h
             } catch (error: Exception) {
                 null
             }

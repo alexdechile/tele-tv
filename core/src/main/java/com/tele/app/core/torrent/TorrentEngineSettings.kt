@@ -1,8 +1,8 @@
 package com.tele.app.core.torrent
 
-import org.libtorrent4j.SessionParams
-import org.libtorrent4j.SettingsPack
-import org.libtorrent4j.swig.settings_pack
+import com.frostwire.jlibtorrent.SessionParams
+import com.frostwire.jlibtorrent.SettingsPack
+import com.frostwire.jlibtorrent.swig.settings_pack
 
 /**
  * Ajustes explícitos de la sesión libtorrent.
