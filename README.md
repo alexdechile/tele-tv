@@ -6,8 +6,8 @@ por dispositivo es la entrada (ver `TeleCard`) y las barras del sistema.
 
 - UI: Kotlin + **Jetpack Compose for TV** (`androidx.tv.material3`), paradigma *10-foot UI*.
 - Reproductor: **Media3 / ExoPlayer** (`PlayerView` vía `AndroidView`, porque `media3-ui-compose` no existe).
-- Motor de torrents: **LibTorrent4j**, con un servidor HTTP local que sirve el archivo a ExoPlayer
-  (ExoPlayer nunca sabe que hay un torrent detrás).
+- Motor de torrents: **jlibtorrent** (libtorrent 2.0, proyecto frostwire), con un servidor HTTP
+  local que sirve el archivo a ExoPlayer (ExoPlayer nunca sabe que hay un torrent detrás).
 - Contenido: **protocolo de addons de Stremio v3** (Cinemeta para catálogos, Torrentio para fuentes).
 
 ## Módulos
@@ -23,7 +23,7 @@ por dispositivo es la entrada (ver `TeleCard`) y las barras del sistema.
 | Milestone | Alcance | Estado |
 |---|---|---|
 | M1 | Fundación: repo, 3 módulos, manifest solo-TV, CI en GitHub Actions | ✅ Hecho |
-| M2 | Motor de torrents (LibTorrent4j) + reproductor ExoPlayer + CI verde | ✅ Hecho |
+| M2 | Motor de torrents (jlibtorrent) + reproductor ExoPlayer + CI verde | ✅ Hecho |
 | M3 | Cliente de addons Stremio v3, home con foco D-pad, detalle con fuentes, reproductor real | ✅ Hecho |
 | M4 | Motor real: sesión libtorrent nativa + servidor HTTP local con `Range` + descarga secuencial | ✅ Hecho |
 | M5 | Persistencia y ajustes: Room (favoritos, historial, progreso), gestión de addons desde la UI | ⏭️ Saltado por decisión de Alex: no quiere que la app guarde datos; se desinstala e instala |
@@ -33,8 +33,9 @@ por dispositivo es la entrada (ver `TeleCard`) y las barras del sistema.
 
 Verificado en CI (`./gradlew :tv:assembleDebug :core:test`):
 
-- Compila y empaqueta el binario nativo: el CI **falla** si `libtorrent4j.so` no queda
-  dentro del APK para `arm64-v8a` y `x86_64` (un fallo así compila pero revienta en la TV).
+- Compila y empaqueta el binario nativo: el CI **falla** si `libjlibtorrent.so` no queda
+  dentro del APK para `arm64-v8a`, `armeabi-v7a` y `x86_64` (un fallo así compila pero
+  revienta en la TV).
 - Servidor HTTP (`HttpStreamServerTest`): 200 completo, 206 con `Content-Range`, rango abierto,
   sufijo `bytes=-N`, `HEAD`, 416 y espera de pieza mientras se descarga.
 - Mapeo de `fileOffsetInTorrent` (el archivo no empieza en el byte 0 del torrent).
@@ -99,8 +100,40 @@ puede con ese audio. El detalle completo queda en logcat con la etiqueta `TeleTv
 - No hay búsqueda ni catálogo completo de Cinemeta: el home muestra las primeras filas de cada addon.
 - Los addons por defecto viven en `DefaultAddons.URLS` (Torrentio puede cambiar de dominio).
 - Se incluyen los ABIs `arm64-v8a`, `armeabi-v7a` (TV boxes Amlogic/32-bit) y `x86_64` (emulador).
-- Un build de release necesita la regla ProGuard que pide libtorrent4j:
-  `-keep class org.libtorrent4j.swig.libtorrent_jni {*;}`.
+- Un build de release **no** necesita reglas ProGuard propias: el AAR de jlibtorrent trae su
+  `proguard.txt` de consumidor (keep de `com.frostwire.jlibtorrent.swig.libtorrent_jni` y de los
+  directores que C++ llama por nombre), y AGP lo aplica solo.
+
+## BitTorrent v2 y v3.1
+
+El motor corre sobre **libtorrent 2.0** (jlibtorrent 2.0.15.3), la primera generación de
+libtorrent con soporte nativo del protocolo v2. Qué está cubierto y qué no, medido contra
+la API que realmente expone el AAR (no contra la documentación):
+
+| Capacidad | Estado |
+|---|---|
+| Magnet con info-hash v2 (`btmh:`, SHA-256) | ✅ `AddedTorrentParams.parseMagnetUri` |
+| Torrents híbridos v1+v2 | ✅ |
+| Árbol de archivos y *piece layers* de v2 | ✅ los maneja libtorrent |
+| Info-hash v2 al leer metadatos | ✅ `TorrentInfo.infoHashV2()` |
+| Elegir v2 y caer a v1 si no hay | ✅ `TorrentEngine.awaitTorrent` |
+| Búsquedas DHT con hash truncado + sal (BEP-53) | ✅ `dht_privacy_lookups = true` |
+| Cifrado obligatorio entre pares | ⚠️ opt-in con `requireEncryption`; libtorrent usa **MSE/PE (RC4)**, no TLS/MuTP |
+| `info_pow` (Proof-of-Work de BEP-53) | ❌ libtorrent 2.0.15.3 no lo expone en ningún lado |
+
+Sobre las dos últimas filas, que son las que de verdad separan v2 de v3.1:
+
+- **El cifrado obligatorio viene apagado.** `pe_forced` rechaza a todo par que no negocie
+  el handshake cifrado. En enjambres públicos de torrents v1 eso deja el video buffereando,
+  así que el perfil estricto es una opción, no el default. El cifrado que implementa
+  libtorrent ofusca el contenido frente a quien mira el cable, pero RC4 no es criptografía
+  moderna: no conviene venderlo como "v3.1 completo".
+- **`info_pow` no se verifica.** No hay campo ni método en las clases SWIG de jlibtorrent
+  2.0.15.3 (`TorrentInfo`, `TorrentHandle`, `settings_pack`) que lo toque. Esto **no rompe**
+  la reproducción: el campo vive dentro del diccionario `info` y entra en el hash v2, pero
+  los clientes lo tratan como una prueba de esfuerzo del editor, no como requisito de
+  conexión. Lo que falta es poder comprobar la dificultad que declara; queda anotado para
+  cuando libtorrent la implemente.
 
 ## Compilar y probar
 
@@ -111,9 +144,10 @@ El CI publica el APK como artefacto `tele-tv-debug`.
 scripts/ci-watch.sh          # espera el CI del commit actual y muestra solo los errores
 ```
 
-Los tests de `:core` corren en la JVM: usan el binario nativo de **Linux** de
-libtorrent4j (Gradle lo extrae y fija `java.library.path`), así se ejercita la API
-real sin emulador.
+Los tests de `:core` corren en la JVM: usan el binario nativo de **Linux**
+(`jlibtorrent-linux-x86_64`, que Gradle extrae y fija en `java.library.path`), así se ejercita
+la API real sin emulador. La app compila contra el AAR `jlibtorrent-android`, que trae las
+mismas clases Java más las `.so` de las cuatro ABIs.
 
 ## Pantallas
 

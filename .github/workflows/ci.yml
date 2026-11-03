@@ -56,16 +56,16 @@ jobs:
               sys.exit(1)
           PYEOF
 
-      - name: Verificar libtorrent4j.so en el APK
+      - name: Verificar libjlibtorrent.so en el APK
         run: |
           APK=$(ls tv/build/outputs/apk/debug/*.apk | head -1)
           echo "APK: $APK"
           unzip -l "$APK" | grep -E 'lib/' | head -20
           for ABI in arm64-v8a armeabi-v7a x86_64; do
-            if unzip -l "$APK" | grep -q "lib/$ABI/libtorrent4j.so"; then
-              echo "OK: lib/$ABI/libtorrent4j.so"
+            if unzip -l "$APK" | grep -q "lib/$ABI/libjlibtorrent.so"; then
+              echo "OK: lib/$ABI/libjlibtorrent.so"
             else
-              echo "::error::Falta lib/$ABI/libtorrent4j.so en el APK"
+              echo "::error::Falta lib/$ABI/libjlibtorrent.so en el APK"
               exit 1
             fi
           done

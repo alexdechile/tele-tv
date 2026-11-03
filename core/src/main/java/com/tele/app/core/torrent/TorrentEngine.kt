@@ -23,14 +23,20 @@ import java.io.File
 import java.util.concurrent.Executors
 
 /**
- * Motor de torrents real (libtorrent4j).
+ * Motor de torrents real (jlibtorrent 2.0.15.3 → libtorrent 2.0).
+ *
+ * libtorrent 2.0 es la primera generación con BitTorrent **v2** nativo: acepta
+ * magnets `btmh:` (info-hash SHA-256), torrents híbridos v1+v2 y el árbol de
+ * archivos de v2. [awaitTorrent] busca por el hash v2 y solo cae al v1 si el
+ * torrent no lo tiene.
  *
  * Flujo de trabajo:
  *  1. Una única `SessionManager` (la sesión de libtorrent) para toda la app.
  *  2. Se agrega el magnet y se esperan los metadatos (DHT/trackers).
  *  3. Se elige el archivo de video y se dejan **todas** las demás piezas en
  *     IGNORE, así el ancho de banda se concentra en la película.
- *  4. Descarga secuencial sobre el rango de piezas de ese archivo.
+ *  4. Descarga secuencial (`TorrentFlags.SEQUENTIAL_DOWNLOAD`) sobre el rango
+ *     de piezas de ese archivo.
  *  5. Se levanta [HttpStreamServer] y se entrega su URL a ExoPlayer.
  *  6. Cuando el archivo elegido termina de bajar, el torrent se **pausa**: se
  *     corta la subida (peers y anuncios) y la reproducción sigue desde el disco.
@@ -351,7 +357,15 @@ class TorrentEngine(
         }
     }
 
-    /** Nombre de directorio sin nada raro: solo letras y dígitos del hash. */
+    /**
+     * Nombre de directorio sin nada raro: solo letras y dígitos del hash.
+     *
+     * Usa `getBest()`, que en jlibtorrent devuelve el **v1 truncado** (su firma
+     * es `Sha1Hash`), no el SHA-256. Es a propósito: ese v1 truncado existe
+     * también para los torrents v2 puros y es estable entre sesiones, así que
+     * sirve como nombre de carpeta sin depender de qué versión de protocolo
+     * traiga el magnet.
+     */
     private fun safeDirName(infoHash: InfoHash): String =
         infoHash.getBest().toString().filter { it.isLetterOrDigit() }.lowercase().ifEmpty { "sin-hash" }
 

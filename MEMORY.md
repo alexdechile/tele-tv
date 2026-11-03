@@ -74,7 +74,36 @@ una pantalla de 540 dp de alto se llena con muy poco. De ahí salieron los tres 
   y del 5 % al 20 % todavía en ceros: el orden quedó invertido, que es lo correcto.
 - **Nota de API:** `libtorrent4j 2.1.0-39` **no** tiene `setSequentialDownload`; lo disponible es
   `setSequentialRange(first, last)`, `piecePriority` y `setPieceDeadline(piece, ms)`.
+  **Actualización (migración a jlibtorrent 2.0.15.3):** `setSequentialRange` ya no existe, pero
+  ahora sí hay `TorrentHandle.setFlags(TorrentFlags.SEQUENTIAL_DOWNLOAD)`, que es el mecanismo
+  nativo. La emulación con `piecePriority(SEVEN)` + deadline en todas las piezas se descartó
+  porque repite el bug de óptimo local: con todas las piezas en la misma prioridad, la prioridad
+  deja de ordenar.
 - **Dato curioso, no es bug:** el mp4 de YTS termina en `0x69` repetido (relleno del release).
+
+## BitTorrent v2 / v3.1 con jlibtorrent 2.0.15.3
+
+- **`InfoHash.getBest()` devuelve `Sha1Hash`, es decir el v1 truncado, NO el SHA-256.**
+  Verificado con `javap -c` sobre `jlibtorrent-2.0.15.3.jar`: la firma es
+  `public Sha1Hash getBest()` y delega en `info_hash_t.get_best()`. Para identificar un
+  torrent v2 hay que preguntar `hasV2()` / `getV2()` (`Sha256Hash`). En el motor,
+  `awaitTorrent` lo hace bien; `safeDirName` usa `getBest()` a propósito (el v1 truncado
+  existe también en los v2 puros y es estable como nombre de carpeta).
+- **`info_pow` (BEP-53) no existe en la API.** Revisadas las clases SWIG `settings_pack`,
+  `TorrentInfo` (`infoHashV2()` sí está) y `TorrentHandle`: ningún campo ni método lo toca.
+  No rompe la reproducción, pero no se puede verificar la dificultad que declara el editor.
+- **`dht_privacy_lookups`** (bool) existe en `settings_pack.bool_types` y es la mitigación
+  DHT de v3.1 (hash truncado + sal). Queda encendida por defecto aunque el DHT esté apagado.
+- **Cifrado obligatorio:** `out_enc_policy` / `in_enc_policy` con `enc_policy.pe_forced`.
+  libtorrent usa **MSE/PE con RC4**, no TLS/MuTP: ofusca el contenido, no es criptografía
+  moderna. Por eso es opt-in (`requireEncryption`) y no el comportamiento por defecto.
+- **Secuencial de verdad:** `TorrentHandle.setFlags(TorrentFlags.SEQUENTIAL_DOWNLOAD)`.
+  Ya no existe `setSequentialRange`. Marcar todas las piezas con `SEVEN` + deadline repite
+  el bug de prioridades uniformes documentado más arriba.
+- **Empaquetado:** se usa solo `api(libs.jlibtorrentAndroid)`. El AAR trae `classes.jar`
+  con las mismas clases que el jar `jlibtorrent`; declarar los dos rompe el ensamblado con
+  "Duplicate class com.frostwire.jlibtorrent.swig.*". La `.so` se llama `libjlibtorrent.so`
+  (no `libtorrent4j.so`) y el AAR incluye un `proguard.txt` de consumidor.
 
 ## Seguridad del motor de torrents (`TorrentEngineSettings`)
 
