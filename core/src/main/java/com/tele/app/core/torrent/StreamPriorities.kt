@@ -7,7 +7,7 @@ import com.frostwire.jlibtorrent.TorrentHandle
  * Cómo se pide el principio del archivo para que el video arranque en segundos.
  *
  * **El bug que esconde esta clase** (medido en el MECOOL KM6): el motor marcaba
- * *todas* las piezas del archivo elegido como `TOP_PRIORITY`. Cuando todas las
+ * *todas* las piezas del archivo elegido como `SEVEN`. Cuando todas las
  * piezas tienen la misma prioridad, la prioridad deja de ordenar nada y
  * libtorrent reparte por *rarest first*; además nunca se usaba
  * `setPieceDeadline`, que es el mecanismo real de libtorrent para streaming.
@@ -19,9 +19,9 @@ import com.frostwire.jlibtorrent.TorrentHandle
  * pista…" hasta llegar casi al 100 %.
  *
  * La política ahora es:
- *  - el archivo elegido va en `DEFAULT` (no `TOP`), para que la prioridad
+ *  - el archivo elegido va en `NORMAL` (no `SEVEN`), para que la prioridad
  *    vuelva a significar algo;
- *  - la ventana del inicio va en `TOP_PRIORITY` **con deadline 0**, que es lo
+ *  - la ventana del inicio va en `SEVEN` **con deadline 0**, que es lo
  *    que hace que libtorrent la pida primero y a los peers más rápidos;
  *  - la ventana se reafirma en cada vuelta del bucle de espera, porque
  *    libtorrent puede reacomodar prioridades al entrar peers nuevos.
@@ -54,7 +54,7 @@ object StreamPriorities {
             firstPiece = firstPiece,
             lastPiece = lastPiece,
             window = window,
-            setPriority = { piece -> runCatching { handle.piecePriority(piece, Priority.TOP_PRIORITY) } },
+            setPriority = { piece -> runCatching { handle.piecePriority(piece, Priority.SEVEN) } },
             setDeadline = { piece -> runCatching { handle.setPieceDeadline(piece, 0) } }
         )
     }

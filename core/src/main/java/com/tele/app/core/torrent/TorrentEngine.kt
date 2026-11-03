@@ -15,6 +15,7 @@ import com.frostwire.jlibtorrent.SessionManager
 import com.frostwire.jlibtorrent.Sha1Hash
 import com.frostwire.jlibtorrent.Sha256Hash
 import com.frostwire.jlibtorrent.TorrentHandle
+import com.frostwire.jlibtorrent.FileStorage
 import com.frostwire.jlibtorrent.TorrentInfo
 import com.frostwire.jlibtorrent.swig.torrent_flags_t
 import java.io.File
@@ -147,8 +148,9 @@ class TorrentEngine(
         val fileName = files.fileName(fileIndex)
         val fileSize = files.fileSize(fileIndex)
 
-        val firstPiece = files.pieceIndexAtFile(fileIndex)
-        val lastPiece = files.lastPieceIndexAtFile(fileIndex)
+        val range = pieceRangeForFile(files, fileIndex)
+        val firstPiece = range.first
+        val lastPiece = range.last
 
         // El inicio del archivo manda: sin esas piezas el reproductor no puede
         // leer ni la cabecera del MP4/MKV y la pantalla queda negra. La cola
@@ -413,22 +415,42 @@ class TorrentEngine(
     /** Prioriza solo el archivo elegido y activa la descarga secuencial. */
     private fun prepareDownload(handle: TorrentHandle, torrentInfo: TorrentInfo, fileIndex: Int) {
         for (index in 0 until torrentInfo.numFiles()) {
-            // DEFAULT y no TOP_PRIORITY: si *todas* las piezas quedan en TOP, la
+            // NORMAL y no SEVEN: si *todas* las piezas quedan en SEVEN, la
             // prioridad no ordena nada y libtorrent reparte por "rarest first".
             // Eso es justo lo que hacía llegar el inicio del archivo al final de
             // la descarga (el video arrancaba recién cerca del 100 %).
-            val priority = if (index == fileIndex) Priority.DEFAULT else Priority.IGNORE
+            val priority = if (index == fileIndex) Priority.NORMAL else Priority.IGNORE
             runCatching { handle.filePriority(index, priority) }
         }
 
         val files = torrentInfo.files()
-        val firstPiece = files.pieceIndexAtFile(fileIndex)
-        val lastPiece = files.lastPieceIndexAtFile(fileIndex)
-        runCatching { handle.setSequentialRange(firstPiece, lastPiece) }
+        val range = pieceRangeForFile(files, fileIndex)
+        val firstPiece = range.first
+        val lastPiece = range.last
+        // No hay setSequentialRange en jlibtorrent 2.x; lo emulamos poniendo
+        // prioridad SEVEN + deadline 0 en el rango de piezas del archivo.
+        for (piece in firstPiece..lastPiece) {
+            runCatching { handle.piecePriority(piece, Priority.SEVEN) }
+            runCatching { handle.setPieceDeadline(piece, 0) }
+        }
 
         // La ventana del inicio se fuerza aparte, con deadline: es lo que hace
         // que llegue en segundos en vez de "cuando toque".
         StreamPriorities.boostHead(handle, firstPiece, lastPiece)
+    }
+
+    /**
+     * Calcula el rango de piezas [first, last] que cubren un archivo.
+     * jlibtorrent 2.x no expone pieceIndexAtFile/lastPieceIndexAtFile,
+     * así que usamos aritmética simple con fileOffset/fileSize/pieceLength.
+     */
+    private fun pieceRangeForFile(files: FileStorage, fileIndex: Int): IntRange {
+        val pieceLength = files.pieceLength().toLong()
+        val fileOffset = files.fileOffset(fileIndex)
+        val fileSize = files.fileSize(fileIndex)
+        val firstPiece = (fileOffset / pieceLength).toInt()
+        val lastPiece = ((fileOffset + fileSize - 1) / pieceLength).toInt()
+        return firstPiece..lastPiece
     }
 
     /**
@@ -460,7 +482,7 @@ class TorrentEngine(
             val size = files.fileSize(index)
             if (size <= 0L) continue
 
-            runCatching { handle.filePriority(index, Priority.DEFAULT) }
+            runCatching { handle.filePriority(index, Priority.NORMAL) }
 
             val baseLabel = TorrentSubtitles.labelOf(name)
             val repeated = (seenLabels[baseLabel] ?: 0) + 1

@@ -25,10 +25,10 @@ class TorrentPieces(private val handle: TorrentHandle) : PieceAvailability {
 
     override fun prioritize(index: Int) {
         // La prioridad sola no alcanza cuando el resto del archivo está en
-        // DEFAULT: el deadline es lo que hace que libtorrent pida la pieza ya y
+        // NORMAL: el deadline es lo que hace que libtorrent pida la pieza ya y
         // a los peers más rápidos. Vale para el inicio y para un seek a mitad
         // del video, que es exactamente cuando el servidor llama acá.
-        runCatching { handle.piecePriority(index, Priority.TOP_PRIORITY) }
+        runCatching { handle.piecePriority(index, Priority.SEVEN) }
         runCatching { handle.setPieceDeadline(index, 0) }
     }
 }
