@@ -169,12 +169,21 @@ class TorrentEngine(
         // timeout. Se reafirma la prioridad en cada vuelta: libtorrent la
         // reacomoda al entrar peers nuevos y sin esto la ventana se diluye.
         val pieceDeadline = System.currentTimeMillis() + FIRST_PIECE_TIMEOUT_MS
+        val waitStart = System.currentTimeMillis()
         while (currentCoroutineContext().isActive && !handle.havePiece(firstPiece)) {
             StreamPriorities.boostHead(handle, firstPiece, lastPiece)
             emitProgress(handle)?.let { emit(it) }
             if (System.currentTimeMillis() >= pieceDeadline) break
             delay(PROGRESS_INTERVAL_MS)
         }
+        // Cuánto costó la primera pieza y si de verdad llegó. Es la métrica que
+        // decide el tiempo al primer frame: si esto tarda, el video arranca tarde
+        // aunque la bajada vaya rápido.
+        val haveFirst = runCatching { handle.havePiece(firstPiece) }.getOrDefault(false)
+        onDiagnostic?.invoke(
+            "primera pieza: piece=$firstPiece have=$haveFirst " +
+                "espera=${System.currentTimeMillis() - waitStart}ms"
+        )
 
         // La ruta la escribe el torrent, no la app: se resuelve a la fuerza
         // dentro del directorio de esta sesión. Si el torrent trae `../..` o
@@ -454,6 +463,16 @@ class TorrentEngine(
         // La ventana del inicio se fuerza aparte, con deadline: es lo que hace
         // que llegue en segundos en vez de "cuando toque".
         StreamPriorities.boostHead(handle, firstPiece, lastPiece)
+
+        // Diagnóstico del plan: sin estos números, "tarda en arrancar" no se
+        // puede distinguir de "el rango de piezas está mal calculado".
+        val filesCount = torrentInfo.numFiles()
+        onDiagnostic?.invoke(
+            "plan: archivo=$fileIndex/$filesCount " +
+                "offset=${files.fileOffset(fileIndex)} bytes=${files.fileSize(fileIndex)} " +
+                "pieza=${files.pieceLength()}B rango=$firstPiece..$lastPiece " +
+                "head=${StreamPriorities.headPieces(firstPiece, lastPiece)}"
+        )
     }
 
     /**
