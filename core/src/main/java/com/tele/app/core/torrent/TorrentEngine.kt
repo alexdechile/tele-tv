@@ -17,6 +17,7 @@ import com.frostwire.jlibtorrent.Sha256Hash
 import com.frostwire.jlibtorrent.TorrentHandle
 import com.frostwire.jlibtorrent.FileStorage
 import com.frostwire.jlibtorrent.TorrentInfo
+import com.frostwire.jlibtorrent.TorrentFlags
 import com.frostwire.jlibtorrent.swig.torrent_flags_t
 import java.io.File
 import java.util.concurrent.Executors
@@ -427,12 +428,14 @@ class TorrentEngine(
         val range = pieceRangeForFile(files, fileIndex)
         val firstPiece = range.first
         val lastPiece = range.last
-        // No hay setSequentialRange en jlibtorrent 2.x; lo emulamos poniendo
-        // prioridad SEVEN + deadline 0 en el rango de piezas del archivo.
-        for (piece in firstPiece..lastPiece) {
-            runCatching { handle.piecePriority(piece, Priority.SEVEN) }
-            runCatching { handle.setPieceDeadline(piece, 0) }
-        }
+
+        // Descarga secuencial de verdad: la flag del torrent, no prioridades
+        // manuales. Poner SEVEN + deadline 0 pieza por pieza *repetía el bug*
+        // que documenta StreamPriorities: cuando todas las piezas tienen la
+        // misma prioridad, libtorrent deja de ordenar por prioridad. Con la
+        // flag, libtorrent pide el archivo de principio a fin y deja que
+        // boostHead marque solo la ventana del inicio.
+        runCatching { handle.setFlags(TorrentFlags.SEQUENTIAL_DOWNLOAD) }
 
         // La ventana del inicio se fuerza aparte, con deadline: es lo que hace
         // que llegue en segundos en vez de "cuando toque".

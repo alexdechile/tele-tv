@@ -64,6 +64,29 @@ class TorrentEngineSettingsTest {
     }
 
     @Test
+    fun `las busquedas DHT piden privacidad aunque el DHT este apagado`() {
+        val settings = TorrentEngineSettings()
+
+        assertTrue(
+            "v3.1: la busqueda DHT no debe revelar el info-hash completo",
+            settings.dhtPrivacyLookups
+        )
+        assertFalse("pero el DHT sigue apagado por defecto", settings.enableDht)
+    }
+
+    @Test
+    fun `el cifrado obligatorio viene apagado para no dejar fuera a los enjambres v1`() {
+        assertFalse(
+            "pe_forced rechaza a los pares sin handshake cifrado y deja el video buffereando",
+            TorrentEngineSettings().requireEncryption
+        )
+        assertTrue(
+            "pero se puede pedir el perfil estricto de v3.1",
+            TorrentEngineSettings(requireEncryption = true).requireEncryption
+        )
+    }
+
+    @Test
     fun `listen_interfaces incluye el puerto configurado`() {
         assertEquals(
             "0.0.0.0:7000,[::]:7000",

@@ -22,10 +22,12 @@ android {
 }
 
 dependencies {
-    // api: el motor expone tipos de jlibtorrent a :tv a traves del flujo de estado
-    api(libs.jlibtorrent)
-    // AAR con clases Java + binarios nativos para arm64-v8a, armeabi-v7a, x86, x86_64
-    runtimeOnly(libs.jlibtorrentAndroid)
+    // api: el motor expone tipos de jlibtorrent a :tv a traves del flujo de estado.
+    // Se usa el AAR de Android, que es autosuficiente: trae classes.jar (las clases
+    // Java completas) + libjlibtorrent.so para arm64-v8a, armeabi-v7a, x86 y x86_64.
+    // NO se agrega el jar `jlibtorrent` por separado: al mezclarlo con el AAR la
+    // tarea de ensamblado falla con "Duplicate class com.frostwire.jlibtorrent.swig.*".
+    api(libs.jlibtorrentAndroid)
     implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.junit)

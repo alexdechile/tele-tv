@@ -28,7 +28,8 @@ import com.frostwire.jlibtorrent.swig.settings_pack
  * Lo que **no** cambia: la sesión sigue escuchando (si no, no llegan pares
  * nuevos y el streaming se arrastra) y el cifrado sigue en `pe_enabled`
  * (acepta pares cifrados y en claro, que es lo que permite conectarse a
- * enjambres reales).
+ * enjambres reales). [requireEncryption] permite forzarlo si algún día se
+ * quiere un perfil estricto de v3.1.
  *
  * [proxy] existe para que mañana se pueda mandar todo el tráfico por un SOCKS5
  * del homelab; hoy viene en `null` y no cambia nada.
@@ -47,6 +48,32 @@ data class TorrentEngineSettings(
      * Los magnet igual resuelven por los trackers que arma `TorrentLinks`.
      */
     val enableDht: Boolean = false,
+    /**
+     * Búsquedas DHT con privacidad (`dht_privacy_lookups`, libtorrent 2.0).
+     *
+     * Con esto puesto, el nodo pide a la red DHT usando un hash **truncado** más
+     * una sal por consulta, en vez del info-hash completo: quien espíe el
+     * tráfico no aprende qué torrent se está buscando. Es la mitigación que
+     * pide BitTorrent v3.1 para DHT (BEP-53) y viene **encendida**, aunque hoy
+     * sea inocua porque [enableDht] está apagado: queda lista para el día que
+     * alguien encienda el DHT.
+     */
+    val dhtPrivacyLookups: Boolean = true,
+    /**
+     * Exigir cifrado del protocolo de pares en **ambas** direcciones
+     * (`out_enc_policy`/`in_enc_policy` = `pe_forced`).
+     *
+     * v3.1 (BEP-53) lo vuelve obligatorio. Viene **apagado a propósito**: en
+     * enjambres públicos de torrents v1 todavía hay clientes viejos que no
+     * negocian el handshake cifrado, y forzarlo los echa y deja el video
+     * buffereando. Con `pe_enabled` (el valor de libtorrent) se aceptan pares
+     * cifrados y en claro, que es lo que hace que el streaming funcione hoy.
+     *
+     * El cifrado que implementa libtorrent es MSE/PE (RC4), no TLS/MuTP: eso
+     * ofusca el contenido frente a quien mira el cable, pero no es
+     * criptografía moderna. Ver la nota en [TorrentEngine].
+     */
+    val requireEncryption: Boolean = false,
     /**
      * Tope de subida en KB/s. El valor por defecto es tan bajo que la app no
      * reparte material útil (una pieza de 1 MB tardaría más de dos minutos en
@@ -77,7 +104,7 @@ data class TorrentEngineSettings(
     val uploadRateLimitBytesPerSecond: Int
         get() = uploadRateLimitKbps.coerceAtLeast(0) * BYTES_PER_KB
 
-    /** Traduce estos ajustes al `settings_pack` que entiende libtorrent4j. */
+    /** Traduce estos ajustes al `settings_pack` que entiende jlibtorrent. */
     fun toSettingsPack(): SettingsPack = SettingsPack().apply {
         setString(settings_pack.string_types.listen_interfaces.swigValue(), listenInterfaces)
 
@@ -85,6 +112,28 @@ data class TorrentEngineSettings(
         setBoolean(settings_pack.bool_types.enable_natpmp.swigValue(), enableNatPmp)
         setBoolean(settings_pack.bool_types.enable_lsd.swigValue(), enableLsd)
         setBoolean(settings_pack.bool_types.enable_dht.swigValue(), enableDht)
+        setBoolean(
+            settings_pack.bool_types.dht_privacy_lookups.swigValue(),
+            dhtPrivacyLookups
+        )
+
+        // Política de cifrado. `pe_enabled` es el valor de libtorrent (acepta
+        // ambos); `pe_forced` rechaza a todo par que no cifre. Se declaran las
+        // dos direcciones porque libtorrent las configura por separado y dejar
+        // una en el default hace que la intención no se cumpla.
+        val encryptionPolicy = if (requireEncryption) {
+            settings_pack.enc_policy.pe_forced
+        } else {
+            settings_pack.enc_policy.pe_enabled
+        }
+        setInteger(
+            settings_pack.int_types.out_enc_policy.swigValue(),
+            encryptionPolicy.swigValue()
+        )
+        setInteger(
+            settings_pack.int_types.in_enc_policy.swigValue(),
+            encryptionPolicy.swigValue()
+        )
 
         setInteger(
             settings_pack.int_types.upload_rate_limit.swigValue(),
