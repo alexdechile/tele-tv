@@ -43,20 +43,17 @@ data class TorrentEngineSettings(
     val enableNatPmp: Boolean = false,
     val enableLsd: Boolean = false,
     /**
-     * DHT apagado: sin él no se busca ni se anuncia nada fuera de los trackers
-     * del magnet. Menos superficie y menos gente enterada de lo que se abre.
-     * Los magnet igual resuelven por los trackers que arma `TorrentLinks`.
+     * DHT encendido con privacidad (dht_privacy_lookups = true).
+     * Permite resolver metadatos y encontrar peers rápidamente incluso si los
+     * trackers del magnet no responden por UDP.
      */
-    val enableDht: Boolean = false,
+    val enableDht: Boolean = true,
     /**
      * Búsquedas DHT con privacidad (`dht_privacy_lookups`, libtorrent 2.0).
      *
      * Con esto puesto, el nodo pide a la red DHT usando un hash **truncado** más
      * una sal por consulta, en vez del info-hash completo: quien espíe el
-     * tráfico no aprende qué torrent se está buscando. Es la mitigación que
-     * pide BitTorrent v3.1 para DHT (BEP-53) y viene **encendida**, aunque hoy
-     * sea inocua porque [enableDht] está apagado: queda lista para el día que
-     * alguien encienda el DHT.
+     * tráfico no aprende qué torrent se está buscando (BEP-53).
      */
     val dhtPrivacyLookups: Boolean = true,
     /**
@@ -176,18 +173,11 @@ data class TorrentEngineSettings(
         const val DEFAULT_LISTEN_PORT = 6881
 
         /**
-         * 32 KB/s: la app no siembra de forma útil (32 KB/s ≈ 115 MB por hora
-         * de reproducción, y solo mientras el video está abierto), pero mantiene
-         * la reciprocidad mínima que el protocolo espera.
-         *
-         * Historial de este número, medido en el KM6 el 2026-10-31:
-         *  - 800 KB/s (valor original): repartía de verdad.
-         *  - 0: libtorrent lo interpreta como **sin tope** (seguía sembrando).
-         *  - 1 B/s: rompe el handshake; la app quedaba en "Obteniendo metadatos".
-         *  - 4 KB/s: los metadatos llegan, pero los peers nos chokean y la
-         *    bajada cae a ~70 KB/s (no alcanza para streaming 1080p).
+         * 64 KB/s: la app no siembra de forma pesada, pero mantiene una tasa
+         * de reciprocidad suficiente para que los peers respondan rápido al
+         * handshake y a la entrega de metadatos.
          */
-        const val DEFAULT_UPLOAD_RATE_LIMIT_KBPS = 32
+        const val DEFAULT_UPLOAD_RATE_LIMIT_KBPS = 64
 
         /** 0 = sin tope; bajar en la TV se quiere lo más rápido posible. */
         const val DEFAULT_DOWNLOAD_RATE_LIMIT_KBPS = 0

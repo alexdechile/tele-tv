@@ -1,6 +1,15 @@
 # Tele TV - Bitácora de Proyecto
 
 ## Último Realizado
+- **Ajuste de tipografía, contraste de botones y solución al bloqueo de metadatos en torrents:**
+  - **Resolución de metadatos y arranque de descarga:**
+    - Al tener `enableDht = false`, los magnets quedaban en `peers=0` si los trackers UDP estaban filtrados por el router/ISP o saturados.
+    - Se reactivó `enableDht = true` manteniendo la privacidad estricta de BEP-53 (`dhtPrivacyLookups = true` con hash truncado y sal).
+    - Se elevó la tasa mínima de reciprocidad a 64 KB/s y se amplió la ventana de arranque inicial a `START_WINDOW = 4`, resolviendo el atasco en "Obteniendo metadatos del torrent…".
+    - Se amplió la lista de trackers fiables en `TorrentLinks.TRACKERS` (incluyendo HTTP/HTTPS).
+  - **Tipografía refinada y mayor contraste:**
+    - Se redujeron tamaños gigantes de fuente (`displaySmall` → `headlineMedium` / `headlineSmall`) y se reforzó su grosor (`FontWeight.Bold` / `SemiBold`).
+    - Se corrigieron los botones superiores del Home ("Buscar en el catálogo" y "Vista: Cuadrícula/Filas") con fondo oscuro definido y texto nítido en lavanda pastel en negrita, garantizando total legibilidad.
 - **Apariencia con colores pasteles, degradés relajantes y gestión de descargas (Conservar / Eliminar):**
   - **Paleta pastel y degradés serenos (`PastelTheme`):**
     - Se eliminó el fondo negro muerto (`#000000`) en toda la app (`MainActivity`, `MainScreen`, `DetailScreen`, `SearchScreen`, `PlayerScreen`), sustituyéndolo por un degradado ambiental envolvente y relajante (`AppAmbientGradient`: azul noche `#0B0F19` → pizarra suave `#101726` → lila noche acogedor `#16142A`).

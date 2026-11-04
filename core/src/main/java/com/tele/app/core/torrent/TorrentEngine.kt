@@ -741,12 +741,11 @@ class TorrentEngine(
 
     private companion object {
         /**
-         * Piezas que se dejan descargables al arrancar. Con 1, los 178 peers
-         * apuntan a la misma pieza y el inicio llega en segundos; medido en el
-         * KM6: con el head completo (8) competían 8 piezas a la vez y la
-         * primera tardó 24 s.
+         * Piezas que se dejan descargables al arrancar (ventana inicial).
+         * Con 4 piezas, los peers pueden responder de inmediato sin choking
+         * mientras la pieza 0 mantiene el deadline prioritario.
          */
-        const val START_WINDOW = 1
+        const val START_WINDOW = 4
 
         const val METADATA_TIMEOUT_MS = 60_000L
         const val FIRST_PIECE_TIMEOUT_MS = 60_000L

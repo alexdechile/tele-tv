@@ -34,6 +34,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
@@ -174,34 +175,50 @@ private fun HeaderRow(
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(24.dp)
+        horizontalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         Text(
             text = "Tele TV",
-            style = MaterialTheme.typography.displaySmall,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
             color = PastelTheme.LavenderLight
         )
         Text(
             text = "Un buscador avanzado para encontrar qué ver",
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
             color = PastelTheme.Sky,
             modifier = Modifier.weight(1f)
         )
-        TeleCard(onClick = onToggleGrid, modifier = Modifier.width(260.dp).height(64.dp)) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        TeleCard(onClick = onToggleGrid, modifier = Modifier.width(220.dp).height(50.dp)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xF0182238))
+                    .padding(horizontal = 14.dp),
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
                     text = if (gridMode) "Vista: Filas" else "Vista: Cuadrícula",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = PastelTheme.TextPrimary
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = PastelTheme.LavenderLight
                 )
             }
         }
-        TeleCard(onClick = onOpenSearch, modifier = Modifier.width(240.dp).height(64.dp)) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        TeleCard(onClick = onOpenSearch, modifier = Modifier.width(230.dp).height(50.dp)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xF0182238))
+                    .padding(horizontal = 14.dp),
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
-                    text = "Buscar en el catálogo",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = PastelTheme.TextPrimary
+                    text = "🔍 Buscar en el catálogo",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = PastelTheme.LavenderLight
                 )
             }
         }
@@ -223,7 +240,7 @@ private fun CatalogRow(
         }
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -231,13 +248,15 @@ private fun CatalogRow(
         ) {
             Text(
                 text = row.title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = PastelTheme.LavenderLight
             )
             Text(
                 text = "${row.items.size} títulos",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Medium,
+                color = PastelTheme.TextSecondary
             )
         }
 
@@ -294,8 +313,9 @@ private fun PosterCard(
         }
         Text(
             text = item.name,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = PastelTheme.TextSecondary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )

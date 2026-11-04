@@ -9,6 +9,10 @@ object TorrentLinks {
         "udp://open.stealth.si:80/announce",
         "udp://tracker.torrent.eu.org:451/announce",
         "udp://tracker.openbittorrent.com:6969/announce",
+        "udp://explodie.org:6969/announce",
+        "udp://opentracker.i2p.rocks:6969/announce",
+        "http://tracker.opentrackr.org:1337/announce",
+        "https://tracker.tamersunion.org:443/announce",
         "udp://exodus.desync.com:6969/announce"
     )
 

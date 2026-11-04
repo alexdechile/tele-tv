@@ -82,8 +82,8 @@ class TorrentSessionTest {
                 "LSD debe quedar apagado en la sesion real",
                 applied.getBoolean(settings_pack.bool_types.enable_lsd.swigValue())
             )
-            assertFalse(
-                "el DHT debe quedar apagado en la sesion real",
+            assertTrue(
+                "el DHT debe quedar encendido con privacidad en la sesion real",
                 applied.getBoolean(settings_pack.bool_types.enable_dht.swigValue())
             )
             assertEquals(
@@ -91,7 +91,7 @@ class TorrentSessionTest {
                 applied.getString(settings_pack.string_types.listen_interfaces.swigValue())
             )
             assertEquals(
-                "el tope de subida del motor tiene que ser el del default (32 KB/s)",
+                "el tope de subida del motor tiene que ser el del default",
                 TorrentEngineSettings.DEFAULT_UPLOAD_RATE_LIMIT_KBPS * 1024,
                 applied.getInteger(settings_pack.int_types.upload_rate_limit.swigValue())
             )
