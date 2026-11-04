@@ -199,6 +199,11 @@ class TorrentEngine(
             if (System.currentTimeMillis() >= pieceDeadline) break
             delay(PROGRESS_INTERVAL_MS)
         }
+
+        // El inicio ya está (o se agotó la espera): se devuelve el resto del
+        // archivo a la descarga. Mientras estuvo en IGNORE solo competían las
+        // piezas del head, que es lo que hace que el video arranque rápido.
+        releaseRestOfFile(handle, fileIndex, firstPiece, lastPiece)
         // Cuánto costó la primera pieza y si de verdad llegó. Es la métrica que
         // decide el tiempo al primer frame: si esto tarda, el video arranca tarde
         // aunque la bajada vaya rápido.
@@ -486,6 +491,14 @@ class TorrentEngine(
         // que llegue en segundos en vez de "cuando toque".
         StreamPriorities.boostHead(handle, firstPiece, lastPiece)
 
+        // Y el resto del archivo queda en IGNORE hasta que el inicio llegue.
+        // Medido en el KM6: con las 1268 piezas descargables a la vez y 178
+        // peers, el picker pide rarest-first en todo el archivo (cola real:
+        // 0,1,388,1164,82,549) y reparte el ancho de banda entre decenas de
+        // piezas incompletas; la primera pieza tardó entre 26 y 52 s y el
+        // primer frame hasta 148 s. Con el resto en IGNORE solo compite el head.
+        concentrateOnHead(handle, firstPiece, lastPiece)
+
         // Diagnóstico del plan: sin estos números, "tarda en arrancar" no se
         // puede distinguir de "el rango de piezas está mal calculado".
         val filesCount = torrentInfo.numFiles()
@@ -495,6 +508,37 @@ class TorrentEngine(
                 "pieza=${files.pieceLength()}B rango=$firstPiece..$lastPiece " +
                 "head=${StreamPriorities.headPieces(firstPiece, lastPiece)}"
         )
+    }
+
+    /**
+     * Deja descargable solo la ventana del inicio; el resto del archivo va a
+     * IGNORE. Es lo que concentra los 178 peers en 8 piezas en vez de repartir
+     * las peticiones por todo el archivo.
+     */
+    private fun concentrateOnHead(handle: TorrentHandle, firstPiece: Int, lastPiece: Int) {
+        val head = StreamPriorities.headPieces(firstPiece, lastPiece)
+        for (piece in firstPiece..lastPiece) {
+            if (piece !in head) {
+                runCatching { handle.piecePriority(piece, Priority.IGNORE) }
+            }
+        }
+    }
+
+    /**
+     * Devuelve el resto del archivo a la descarga, ya con el inicio en mano.
+     *
+     * `filePriority` recalcula las prioridades desde el archivo, así que borra
+     * el SEVEN del head: se vuelve a aplicar después, con su deadline.
+     */
+    private fun releaseRestOfFile(
+        handle: TorrentHandle,
+        fileIndex: Int,
+        firstPiece: Int,
+        lastPiece: Int
+    ) {
+        runCatching { handle.filePriority(fileIndex, Priority.NORMAL) }
+        StreamPriorities.boostHead(handle, firstPiece, lastPiece)
+        onDiagnostic?.invoke("head listo: resto del archivo habilitado")
     }
 
     /**
