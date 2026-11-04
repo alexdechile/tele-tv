@@ -105,6 +105,40 @@ una pantalla de 540 dp de alto se llena con muy poco. De ahí salieron los tres 
   "Duplicate class com.frostwire.jlibtorrent.swig.*". La `.so` se llama `libjlibtorrent.so`
   (no `libtorrent4j.so`) y el AAR incluye un `proguard.txt` de consumidor.
 
+## Arranque del streaming con jlibtorrent 2.0 (medido en el KM6)
+
+Todas las cifras son con la misma película y la misma fuente (Obsession 1080p,
+4.96 GB, pieza de 4 MB, 1268 piezas, ~178 peers, caché limpia).
+
+| Configuración | Primera pieza | Primer frame |
+|---|---|---|
+| `SEQUENTIAL_DOWNLOAD` activo | 52 s | 109–131 s |
+| Sin la flag, head 8 en SEVEN + deadline | 26 s | 131 s |
+| + deadlines escalonados y `piece_extent_affinity=false` | — | 148 s |
+| + **resto del archivo en IGNORE hasta tener el inicio** | 24 s | **72 s** |
+| + **tres fases (1 pieza → head → resto)** | **16 s** | 79 s |
+
+Lo que quedó comprobado con diagnóstico propio (`plan:`, `head:`, `primera pieza:`):
+
+- **`SEQUENTIAL_DOWNLOAD` anula el deadline de streaming.** Con la flag puesta el
+  picker va en orden del torrent y la pieza 0 tardó 52 s. Quitarla la bajó a 26 s.
+- **La prioridad sí se aplica**: `piecePriority` devolvía `[7,7,7,7,7,7,7,7]`. El
+  problema nunca fue el valor de la prioridad.
+- **Re-aplicar `setPieceDeadline(piece, 0)` en cada vuelta es contraproducente**:
+  la cola quedaba mezclada (`[3,73,825,0,1,2]`) y la pieza 0 no llegaba. El
+  deadline se pone una vez; en el bucle solo se reafirma la prioridad.
+- **El enemigo real es la competencia**: con las 1268 piezas descargables y 178
+  peers, el picker pide *rarest first* por todo el archivo (cola real:
+  `0,1,388,1164,82,549`) y reparte el ancho de banda entre decenas de piezas
+  incompletas. Poner el resto en `IGNORE` mientras se espera el inicio es lo que
+  más movió la aguja (148 s → 72 s).
+- **Liberar el resto del archivo hay que hacerlo cuando el head está entero.** Si
+  se libera al tener la primera pieza, la dispersión vuelve justo cuando
+  ExoPlayer empieza a pedir su buffer (37 s medidos entre pieza 0 y decoder).
+
+Con ~1 MB/s de este torrent, el piso del primer frame lo pone el buffer que
+ExoPlayer exige antes de mostrar imagen, no el motor.
+
 ## Seguridad del motor de torrents (`TorrentEngineSettings`)
 
 - **Problema:** `SessionManager().start()` sin `settings_pack` heredaba los defaults de libtorrent 1.2:

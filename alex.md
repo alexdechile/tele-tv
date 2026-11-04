@@ -1,9 +1,14 @@
 # Tele TV - Bitácora de Proyecto
 
 ## Último Realizado
-- **Streaming P2P ultrarrápido (Deadlines escalonados y desactivación de `piece_extent_affinity`):**
+- **Arranque del streaming medido y corregido (KM6, misma película y fuente):**
+  - La causa del arranque lento **no** era el deadline ni `piece_extent_affinity`: con 1268 piezas descargables y 178 peers, libtorrent pide *rarest first* por todo el archivo (cola real `0,1,388,1164,82,549`) y reparte el ancho de banda entre decenas de piezas incompletas.
+  - Correcciones medidas: quitar `SEQUENTIAL_DOWNLOAD` (anulaba el deadline: 52 s → 26 s), poner el resto del archivo en `IGNORE` mientras se espera el inicio (148 s → 72 s al primer frame, primera pieza 16 s), y liberar el resto solo cuando el head está entero.
+  - Detalle fino: re-aplicar `setPieceDeadline(0)` cada segundo reordena las peticiones y cancela bloques en vuelo; se aplica una vez y en el bucle solo se reafirma la prioridad.
+- **Streaming P2P (Deadlines escalonados y desactivación de `piece_extent_affinity`) — medido después: no era la causa.**
   - **Deadlines escalonados en la ventana de arranque (`DEADLINE_STAGGER_MS = 500ms`):** Se corrigió la asignación idéntica de deadline 0 a todas las piezas del inicio (`0..7`), la cual provocaba que libtorrent dispersara los bloques entre 178 peers descargando 32 MB en paralelo antes de validar el hash de la primera pieza (demora de 26 s a 1.2 MB/s). Ahora la primera pieza tiene deadline 0 (inmediato) y las siguientes se escalonan progresivamente (+500 ms por pieza), forzando a que libtorrent concentre todas las conexiones en la pieza 0 antes de pasar a la siguiente.
   - **Desactivación de `piece_extent_affinity`:** libtorrent 2.0 activa por defecto la afinidad por extensiones contiguas en disco (extents de 4-16 MB), lo que competía contra los deadlines individuales de streaming. Se desactivó explícitamente en `TorrentEngineSettings` y `toSettingsPack()` para que el picker priorice el streaming puro.
+  - **Resultado real medido en el KM6:** este cambio dio **148 s** al primer frame (peor que los 131 s previos). Los deadlines escalonados se mantienen porque no estorban, pero lo que destrabó el arranque fue dejar el resto del archivo en `IGNORE` (ver entrada de arriba). Se conserva `pieceExtentAffinity` como opción, apagada.
 - **Búsqueda y filtro por país de origen en el buscador:**
   - **Selector de país (`País: [Cualquiera ▾]`):** se agregó una nueva píldora interactiva en la barra de filtros del buscador con navegación D-pad. Despliega en una fila horizontal deslizable los principales países de producción cinematográfica y televisiva (España, Chile, Argentina, México, Estados Unidos, Colombia, Reino Unido, Francia, Italia, Alemania, Japón, Corea del Sur, Brasil, Canadá, Australia, Perú, Uruguay, India, etc.).
   - **Descubrimiento cultural inteligente (Wikidata SPARQL + Cinemeta):**
