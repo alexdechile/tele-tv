@@ -200,10 +200,11 @@ class TorrentEngine(
             delay(PROGRESS_INTERVAL_MS)
         }
 
-        // El inicio ya está (o se agotó la espera): se devuelve el resto del
-        // archivo a la descarga. Mientras estuvo en IGNORE solo competían las
-        // piezas del head, que es lo que hace que el video arranque rápido.
-        releaseRestOfFile(handle, fileIndex, firstPiece, lastPiece)
+        // El inicio ya está (o se agotó la espera): se abre el head completo.
+        // El resto del archivo sigue en IGNORE hasta que el head esté entero;
+        // liberarlo ahora repetiría la dispersión justo cuando ExoPlayer empieza
+        // a pedir su buffer (medido: 37 s entre la primera pieza y el decoder).
+        expandHead(handle, firstPiece, lastPiece)
         // Cuánto costó la primera pieza y si de verdad llegó. Es la métrica que
         // decide el tiempo al primer frame: si esto tarda, el video arranca tarde
         // aunque la bajada vaya rápido.
@@ -272,9 +273,16 @@ class TorrentEngine(
         // pasa no hay nada más que pedir: se corta la subida pausando el
         // torrent, y la reproducción sigue leyendo del disco sin enterarse.
         var uploadPaused = false
+        var restReleased = false
 
         while (currentCoroutineContext().isActive) {
             emitProgress(handle)?.let { emit(it) }
+            // Fase 3: con el head entero en disco se habilita el resto del
+            // archivo. Antes no, para no competir con el arranque del player.
+            if (!restReleased && headIsComplete(handle, firstPiece, lastPiece)) {
+                restReleased = true
+                releaseRestOfFile(handle, fileIndex, firstPiece, lastPiece)
+            }
             if (!uploadPaused) {
                 uploadPaused = pauseIfComplete(handle, fileIndex, fileSize)
             }
@@ -497,7 +505,7 @@ class TorrentEngine(
         // 0,1,388,1164,82,549) y reparte el ancho de banda entre decenas de
         // piezas incompletas; la primera pieza tardó entre 26 y 52 s y el
         // primer frame hasta 148 s. Con el resto en IGNORE solo compite el head.
-        concentrateOnHead(handle, firstPiece, lastPiece)
+        concentrateOnHead(handle, firstPiece, lastPiece, window = START_WINDOW)
 
         // Diagnóstico del plan: sin estos números, "tarda en arrancar" no se
         // puede distinguir de "el rango de piezas está mal calculado".
@@ -515,13 +523,32 @@ class TorrentEngine(
      * IGNORE. Es lo que concentra los 178 peers en 8 piezas en vez de repartir
      * las peticiones por todo el archivo.
      */
-    private fun concentrateOnHead(handle: TorrentHandle, firstPiece: Int, lastPiece: Int) {
-        val head = StreamPriorities.headPieces(firstPiece, lastPiece)
+    private fun concentrateOnHead(
+        handle: TorrentHandle,
+        firstPiece: Int,
+        lastPiece: Int,
+        window: Int
+    ) {
+        val allowed = StreamPriorities.headPieces(firstPiece, lastPiece, window)
         for (piece in firstPiece..lastPiece) {
-            if (piece !in head) {
+            if (piece !in allowed) {
                 runCatching { handle.piecePriority(piece, Priority.IGNORE) }
             }
         }
+    }
+
+    /** Abre el head completo y deja el resto del archivo en IGNORE. */
+    private fun expandHead(handle: TorrentHandle, firstPiece: Int, lastPiece: Int) {
+        concentrateOnHead(handle, firstPiece, lastPiece, window = StreamPriorities.HEAD_WINDOW)
+        StreamPriorities.boostHead(handle, firstPiece, lastPiece)
+        onDiagnostic?.invoke("head abierto: ${StreamPriorities.HEAD_WINDOW} piezas")
+    }
+
+    /** ¿Están todas las piezas del head en disco? */
+    private fun headIsComplete(handle: TorrentHandle, firstPiece: Int, lastPiece: Int): Boolean {
+        val head = StreamPriorities.headPieces(firstPiece, lastPiece)
+        if (head.isEmpty()) return true
+        return head.all { runCatching { handle.havePiece(it) }.getOrDefault(false) }
     }
 
     /**
@@ -648,6 +675,14 @@ class TorrentEngine(
     )
 
     private companion object {
+        /**
+         * Piezas que se dejan descargables al arrancar. Con 1, los 178 peers
+         * apuntan a la misma pieza y el inicio llega en segundos; medido en el
+         * KM6: con el head completo (8) competían 8 piezas a la vez y la
+         * primera tardó 24 s.
+         */
+        const val START_WINDOW = 1
+
         const val METADATA_TIMEOUT_MS = 60_000L
         const val FIRST_PIECE_TIMEOUT_MS = 60_000L
         const val POLL_INTERVAL_MS = 300L
