@@ -71,4 +71,20 @@ class StreamPrioritiesTest {
 
         assertEquals(listOf(10, 11, 12), tocadas)
     }
+
+    @Test
+    fun `boostHead escalona los plazos para no dispersar las peticiones`() {
+        val plazos = mutableListOf<Pair<Int, Int>>()
+
+        StreamPriorities.boostHead(
+            firstPiece = 10,
+            lastPiece = 99,
+            setPriority = {},
+            setDeadline = { piece, ms -> plazos.add(piece to ms) }
+        )
+
+        assertEquals(10 to 0, plazos[0])
+        assertEquals(11 to StreamPriorities.DEADLINE_STAGGER_MS, plazos[1])
+        assertEquals(12 to StreamPriorities.DEADLINE_STAGGER_MS * 2, plazos[2])
+    }
 }

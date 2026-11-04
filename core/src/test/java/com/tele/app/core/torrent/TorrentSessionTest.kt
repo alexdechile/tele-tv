@@ -99,6 +99,10 @@ class TorrentSessionTest {
                 "las busquedas DHT deben pedir privacidad (hash truncado + sal)",
                 applied.getBoolean(settings_pack.bool_types.dht_privacy_lookups.swigValue())
             )
+            assertFalse(
+                "piece_extent_affinity debe quedar apagado en la sesion real para streaming",
+                applied.getBoolean(settings_pack.bool_types.piece_extent_affinity.swigValue())
+            )
             assertEquals(
                 "por defecto el cifrado acepta pares cifrados y en claro",
                 settings_pack.enc_policy.pe_enabled.swigValue(),

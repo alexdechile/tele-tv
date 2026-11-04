@@ -75,6 +75,14 @@ class TorrentEngineSettingsTest {
     }
 
     @Test
+    fun `piece_extent_affinity viene apagado para favorecer deadlines de streaming`() {
+        assertFalse(
+            "en false el picker concentra ancho de banda en la primera pieza sin agrupar por extents",
+            TorrentEngineSettings().pieceExtentAffinity
+        )
+    }
+
+    @Test
     fun `el cifrado obligatorio viene apagado para no dejar fuera a los enjambres v1`() {
         assertFalse(
             "pe_forced rechaza a los pares sin handshake cifrado y deja el video buffereando",

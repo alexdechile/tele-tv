@@ -60,6 +60,16 @@ data class TorrentEngineSettings(
      */
     val dhtPrivacyLookups: Boolean = true,
     /**
+     * Afinidad de piezas por extensiones contiguas (`piece_extent_affinity`, libtorrent 2.0).
+     *
+     * En libtorrent 2.0 viene en true por defecto para optimizar I/O de disco
+     * agrupando descargas contiguas en extents de 4-16 MB. Para streaming de TV
+     * esto dispersa las peticiones de bloques entre piezas adyacentes compitiendo
+     * con el deadline exacto de la primera pieza. Viene **apagada** para que el
+     * picker concentre el ancho de banda exclusivamente en la pieza prioritaria.
+     */
+    val pieceExtentAffinity: Boolean = false,
+    /**
      * Exigir cifrado del protocolo de pares en **ambas** direcciones
      * (`out_enc_policy`/`in_enc_policy` = `pe_forced`).
      *
@@ -115,6 +125,10 @@ data class TorrentEngineSettings(
         setBoolean(
             settings_pack.bool_types.dht_privacy_lookups.swigValue(),
             dhtPrivacyLookups
+        )
+        setBoolean(
+            settings_pack.bool_types.piece_extent_affinity.swigValue(),
+            pieceExtentAffinity
         )
 
         // Política de cifrado. `pe_enabled` es el valor de libtorrent (acepta

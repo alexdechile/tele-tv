@@ -36,6 +36,15 @@ object StreamPriorities {
     const val HEAD_WINDOW = 8
 
     /**
+     * Paso de escalonamiento de deadlines en ms.
+     * La primera pieza (`firstPiece`) se pide con deadline 0 (urgencia máxima).
+     * Cada pieza siguiente se distancia por este valor para que el picker
+     * de libtorrent concentre los bloques y el ancho de banda en la primera pieza
+     * antes de pasar a la siguiente, evitando dispersión entre peers.
+     */
+    const val DEADLINE_STAGGER_MS = 500
+
+    /**
      * Rango de piezas del inicio, recortado al final del archivo.
      *
      * Devuelve un rango vacío si los índices no tienen sentido (por ejemplo un
@@ -48,14 +57,14 @@ object StreamPriorities {
         return firstPiece..minOf(end, lastPiece)
     }
 
-    /** Aplica la política sobre un handle real de libtorrent. */
+    /** Aplica la política sobre un handle real de libtorrent con deadlines escalonados. */
     fun boostHead(handle: TorrentHandle, firstPiece: Int, lastPiece: Int, window: Int = HEAD_WINDOW) {
         boostHead(
             firstPiece = firstPiece,
             lastPiece = lastPiece,
             window = window,
             setPriority = { piece -> runCatching { handle.piecePriority(piece, Priority.SEVEN) } },
-            setDeadline = { piece -> runCatching { handle.setPieceDeadline(piece, 0) } }
+            setDeadline = { piece, deadlineMs -> runCatching { handle.setPieceDeadline(piece, deadlineMs) } }
         )
     }
 
@@ -79,8 +88,26 @@ object StreamPriorities {
     }
 
     /**
-     * Versión sin libtorrent, con las dos acciones inyectadas: es la que se
-     * prueba en la JVM sin cargar el nativo.
+     * Versión sin libtorrent con deadline escalonado (0, 500ms, 1000ms...),
+     * con las dos acciones inyectadas: es la que se prueba en la JVM sin cargar el nativo.
+     */
+    fun boostHead(
+        firstPiece: Int,
+        lastPiece: Int,
+        window: Int = HEAD_WINDOW,
+        setPriority: (Int) -> Unit,
+        setDeadline: (piece: Int, deadlineMs: Int) -> Unit
+    ) {
+        val pieces = headPieces(firstPiece, lastPiece, window)
+        for ((index, piece) in pieces.withIndex()) {
+            setPriority(piece)
+            val deadlineMs = index * DEADLINE_STAGGER_MS
+            setDeadline(piece, deadlineMs)
+        }
+    }
+
+    /**
+     * Sobrecarga de compatibilidad para llamadas donde `setDeadline` solo espera `(Int) -> Unit`.
      */
     fun boostHead(
         firstPiece: Int,
@@ -89,9 +116,12 @@ object StreamPriorities {
         setPriority: (Int) -> Unit,
         setDeadline: (Int) -> Unit
     ) {
-        for (piece in headPieces(firstPiece, lastPiece, window)) {
-            setPriority(piece)
-            setDeadline(piece)
-        }
+        boostHead(
+            firstPiece = firstPiece,
+            lastPiece = lastPiece,
+            window = window,
+            setPriority = setPriority,
+            setDeadline = { piece, _ -> setDeadline(piece) }
+        )
     }
 }
