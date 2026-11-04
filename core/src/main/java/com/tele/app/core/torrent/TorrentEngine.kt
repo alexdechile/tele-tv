@@ -17,7 +17,6 @@ import com.frostwire.jlibtorrent.Sha256Hash
 import com.frostwire.jlibtorrent.TorrentHandle
 import com.frostwire.jlibtorrent.FileStorage
 import com.frostwire.jlibtorrent.TorrentInfo
-import com.frostwire.jlibtorrent.TorrentFlags
 import com.frostwire.jlibtorrent.swig.torrent_flags_t
 import java.io.File
 import java.util.concurrent.Executors
@@ -35,8 +34,9 @@ import java.util.concurrent.Executors
  *  2. Se agrega el magnet y se esperan los metadatos (DHT/trackers).
  *  3. Se elige el archivo de video y se dejan **todas** las demás piezas en
  *     IGNORE, así el ancho de banda se concentra en la película.
- *  4. Descarga secuencial (`TorrentFlags.SEQUENTIAL_DOWNLOAD`) sobre el rango
- *     de piezas de ese archivo.
+ *  4. El inicio del archivo se pide con prioridad máxima y deadline de
+ *     streaming (ver `StreamPriorities`); el picker de libtorrent decide el
+ *     resto.
  *  5. Se levanta [HttpStreamServer] y se entrega su URL a ExoPlayer.
  *  6. Cuando el archivo elegido termina de bajar, el torrent se **pausa**: se
  *     corta la subida (peers y anuncios) y la reproducción sigue desde el disco.
@@ -462,13 +462,12 @@ class TorrentEngine(
         val firstPiece = range.first
         val lastPiece = range.last
 
-        // Descarga secuencial de verdad: la flag del torrent, no prioridades
-        // manuales. Poner SEVEN + deadline 0 pieza por pieza *repetía el bug*
-        // que documenta StreamPriorities: cuando todas las piezas tienen la
-        // misma prioridad, libtorrent deja de ordenar por prioridad. Con la
-        // flag, libtorrent pide el archivo de principio a fin y deja que
-        // boostHead marque solo la ventana del inicio.
-        runCatching { handle.setFlags(TorrentFlags.SEQUENTIAL_DOWNLOAD) }
+        // **Sin SEQUENTIAL_DOWNLOAD a propósito.** Medido en el KM6 con
+        // jlibtorrent 2.0.15.3: con la flag puesta, el picker pasa a orden
+        // secuencial del torrent y deja de honrar los deadlines de streaming;
+        // el resultado fue `head: 0/8` durante 20 s bajando a 1,2 MB/s y la
+        // primera pieza llegó recién a los 52 s. El orden secuencial del resto
+        // se activa después de tener el inicio (ver más abajo).
 
         // La ventana del inicio se fuerza aparte, con deadline: es lo que hace
         // que llegue en segundos en vez de "cuando toque".
