@@ -66,6 +66,13 @@ class TorrentEngine(
     /** Trazas del motor (estado y peers mientras se esperan metadatos). */
     var onDiagnostic: ((String) -> Unit)? = null
 
+    /**
+     * Si es true, la descarga actual se conserva en disco al salir (no se borra en stop).
+     * Puede conmutarse desde la interfaz con el botón de conservar.
+     */
+    @Volatile
+    var keepOnStop: Boolean = false
+
     private val lock = Any()
 
     private var sessionManager: SessionManager? = null
@@ -315,13 +322,26 @@ class TorrentEngine(
     }
 
     /**
-     * Corta el torrent activo, cierra el servidor local y **borra lo bajado**.
-     *
-     * Ojo con el orden que importa: el `TorrentHandle` se saca de la sesión
-     * antes de tocar el disco, porque mientras libtorrent tenga el archivo
-     * abierto el borrado puede fallar en Android.
+     * Marca si la descarga activa debe conservarse en disco al salir.
      */
-    fun stop() {
+    fun setKeepDownloaded(keep: Boolean) {
+        keepOnStop = keep
+        onDiagnostic?.invoke(
+            if (keep) "descarga marcada para conservar en disco"
+            else "descarga marcada para eliminar al salir"
+        )
+    }
+
+    /**
+     * Consulta si la descarga está marcada para conservarse en disco.
+     */
+    fun isKeepDownloaded(): Boolean = keepOnStop
+
+    /**
+     * Borra inmediatamente el material descargado del torrent activo y libera el espacio.
+     * Retorna true si se liberaron datos o se borró el directorio exitosamente.
+     */
+    fun deleteActiveDownloadNow(): Boolean {
         val dirToDelete: File?
         synchronized(lock) {
             activeServer?.stop()
@@ -336,10 +356,55 @@ class TorrentEngine(
 
             dirToDelete = activeDir
             activeDir = null
+            keepOnStop = false
         }
 
-        if (deleteOnStop) {
-            dirToDelete?.let { scheduleDelete(it) }
+        return if (dirToDelete != null) {
+            val freed = TorrentPaths.purge(dirToDelete)
+            val deleted = runCatching { dirToDelete.deleteRecursively() }.getOrDefault(false)
+            onDiagnostic?.invoke("archivo eliminado completamente por el usuario ($freed bytes liberados)")
+            deleted || freed > 0
+        } else {
+            false
+        }
+    }
+
+    /**
+     * Corta el torrent activo, cierra el servidor local y borra lo bajado
+     * (a menos que se haya marcado [keepOnStop] en true).
+     *
+     * Ojo con el orden que importa: el `TorrentHandle` se saca de la sesión
+     * antes de tocar el disco, porque mientras libtorrent tenga el archivo
+     * abierto el borrado puede fallar en Android.
+     */
+    fun stop() {
+        val dirToDelete: File?
+        val preservedDir: File?
+        synchronized(lock) {
+            activeServer?.stop()
+            activeServer = null
+
+            val handle = activeHandle
+            activeHandle = null
+            val manager = sessionManager
+            if (handle != null && manager != null) {
+                runCatching { manager.remove(handle) }
+            }
+
+            if (keepOnStop) {
+                dirToDelete = null
+                preservedDir = activeDir
+            } else {
+                dirToDelete = activeDir
+                preservedDir = null
+            }
+            activeDir = null
+        }
+
+        if (preservedDir != null) {
+            onDiagnostic?.invoke("descarga conservada en almacenamiento: ${preservedDir.absolutePath}")
+        } else if (deleteOnStop && dirToDelete != null) {
+            scheduleDelete(dirToDelete)
         }
     }
 

@@ -1,5 +1,6 @@
 package com.tele.app.tv.ui.main
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
@@ -36,12 +38,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
+import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import com.tele.app.data.addon.model.HomeRow
 import com.tele.app.data.addon.model.MetaPreview
 import com.tele.app.tv.ui.components.SkeletonCatalog
 import com.tele.app.tv.ui.components.TeleCard
+import com.tele.app.tv.ui.theme.PastelTheme
 
 /** Home de la TV: filas de carátulas navegables con el D-pad. */
 @Composable
@@ -52,13 +56,22 @@ fun MainScreen(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(modifier = modifier.fillMaxSize()) {
-        when (state) {
-            // Esqueleto en vez de "Cargando catálogo…": la forma de lo que viene
-            // dice "está trabajando", no "se colgó".
-            HomeState.Loading -> SkeletonCatalog()
-            is HomeState.Error -> ErrorPanel(state.message, onRetry)
-            is HomeState.Content -> CatalogContent(state.rows, onItemSelected, onOpenSearch)
+    Surface(
+        modifier = modifier.fillMaxSize(),
+        colors = SurfaceDefaults.colors(containerColor = Color.Transparent)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(PastelTheme.AppAmbientGradient)
+        ) {
+            when (state) {
+                // Esqueleto en vez de "Cargando catálogo…": la forma de lo que viene
+                // dice "está trabajando", no "se colgó".
+                HomeState.Loading -> SkeletonCatalog()
+                is HomeState.Error -> ErrorPanel(state.message, onRetry)
+                is HomeState.Content -> CatalogContent(state.rows, onItemSelected, onOpenSearch)
+            }
         }
     }
 }
@@ -166,25 +179,30 @@ private fun HeaderRow(
         Text(
             text = "Tele TV",
             style = MaterialTheme.typography.displaySmall,
-            color = MaterialTheme.colorScheme.onSurface
+            color = PastelTheme.LavenderLight
         )
         Text(
             text = "Un buscador avanzado para encontrar qué ver",
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = PastelTheme.Sky,
             modifier = Modifier.weight(1f)
         )
         TeleCard(onClick = onToggleGrid, modifier = Modifier.width(260.dp).height(64.dp)) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     text = if (gridMode) "Vista: Filas" else "Vista: Cuadrícula",
-                    style = MaterialTheme.typography.titleSmall
+                    style = MaterialTheme.typography.titleSmall,
+                    color = PastelTheme.TextPrimary
                 )
             }
         }
         TeleCard(onClick = onOpenSearch, modifier = Modifier.width(240.dp).height(64.dp)) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(text = "Buscar en el catálogo", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = "Buscar en el catálogo",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = PastelTheme.TextPrimary
+                )
             }
         }
     }

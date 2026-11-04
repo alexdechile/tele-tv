@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
+import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import com.tele.app.data.addon.model.Country
@@ -50,6 +51,7 @@ import com.tele.app.data.addon.model.MetaPreview
 import com.tele.app.data.addon.model.SearchFilters
 import com.tele.app.data.addon.model.SortOrder
 import com.tele.app.tv.ui.components.SkeletonGrid
+import com.tele.app.tv.ui.theme.PastelTheme
 import kotlin.math.round
 import com.tele.app.tv.ui.components.TeleCard
 
@@ -115,47 +117,54 @@ fun SearchScreen(
     Surface(
         modifier = modifier
             .fillMaxSize()
-            .onPreviewKeyEvent(handleKeyEvent)
+            .onPreviewKeyEvent(handleKeyEvent),
+        colors = SurfaceDefaults.colors(containerColor = Color.Transparent)
     ) {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 32.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .background(PastelTheme.AppAmbientGradient)
         ) {
-            SearchHeader(state = state, onBack = onBack)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 32.dp, vertical = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                SearchHeader(state = state, onBack = onBack)
 
-            FilterChipsRow(
-                state = state,
-                openFilter = openFilter,
-                requesters = chipRequesters,
-                onToggle = { kind -> openFilter = if (openFilter == kind) null else kind },
-                onClearFilters = onClearFilters
-            )
-
-            // El panel de filtros va arriba de los resultados y **compacto**: en
-            // 540 dp de alto un teclado grande dejaba a los resultados sin un
-            // solo píxel (el teclado "cubría la pantalla"). Con el panel corto,
-            // los resultados quedan siempre a la vista abajo y se baja con el
-            // D-pad.
-            openFilter?.let { kind ->
-                FilterPanel(
-                    kind = kind,
+                FilterChipsRow(
                     state = state,
-                    filters = state.filters,
-                    onFiltersChange = onFiltersChange,
-                    onClose = {
-                        openFilter = null
-                        runCatching { chipRequesters[kind.ordinal].requestFocus() }
-                    }
+                    openFilter = openFilter,
+                    requesters = chipRequesters,
+                    onToggle = { kind -> openFilter = if (openFilter == kind) null else kind },
+                    onClearFilters = onClearFilters
+                )
+
+                // El panel de filtros va arriba de los resultados y **compacto**: en
+                // 540 dp de alto un teclado grande dejaba a los resultados sin un
+                // solo píxel (el teclado "cubría la pantalla"). Con el panel corto,
+                // los resultados quedan siempre a la vista abajo y se baja con el
+                // D-pad.
+                openFilter?.let { kind ->
+                    FilterPanel(
+                        kind = kind,
+                        state = state,
+                        filters = state.filters,
+                        onFiltersChange = onFiltersChange,
+                        onClose = {
+                            openFilter = null
+                            runCatching { chipRequesters[kind.ordinal].requestFocus() }
+                        }
+                    )
+                }
+
+                ResultsArea(
+                    state = state,
+                    onItemSelected = onItemSelected,
+                    modifier = Modifier.weight(1f)
                 )
             }
-
-            ResultsArea(
-                state = state,
-                onItemSelected = onItemSelected,
-                modifier = Modifier.weight(1f)
-            )
         }
     }
 }
@@ -174,13 +183,13 @@ private fun SearchHeader(state: SearchUiState, onBack: () -> Unit) {
         Text(
             text = "Buscador",
             style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onSurface
+            color = PastelTheme.LavenderLight
         )
 
         Text(
             text = statusText(state),
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = PastelTheme.Sky
         )
 
         Spacer(modifier = Modifier.weight(1f))

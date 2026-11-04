@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -86,6 +87,7 @@ import com.tele.app.tv.audio.AudioSupportReport
 import com.tele.app.tv.audio.readAudioSupport
 import com.tele.app.tv.ui.components.TeleCard
 import com.tele.app.tv.ui.navigation.PlaybackRequest
+import com.tele.app.tv.ui.theme.PastelTheme
 import kotlinx.coroutines.delay
 import java.io.File
 import java.util.Locale
@@ -98,19 +100,19 @@ private const val TORRENT_LOG_TAG = "TeleTvTorrent"
 /** Cuánto salta el seek al apretar izquierda/derecha en el control remoto. */
 private const val SEEK_STEP_MS = 10_000L
 
-// Paleta de la barra: píldoras claras, texto oscuro, foco ámbar.
+// Paleta de la barra: tonos pasteles suaves y descansados para la vista.
 // El video queda detrás del degradado, así que el contraste se mantiene sin
-// importar qué escena esté en pantalla.
-private val PillIdle = Color(0xF2FFFFFF)
-private val PillPrimary = Color(0xFFFFFFFF)
-private val PillIdleText = Color(0xFF141414)
-private val PillFocus = Color(0xFFFFC24B)
-private val PillFocusText = Color(0xFF1C1300)
-private val PillFocusRing = Color(0xFFFFE1A3)
-private val SeekAccent = Color(0xFFFFC24B)
-private val StatusText = Color(0xFFEDEDED)
-private val StatusError = Color(0xFFFF8A80)
-private val StatusSecondary = Color(0xFF9E9E9E)
+// importar qué escena esté en pantalla, transmitiendo tranquilidad.
+private val PillIdle = Color(0xEEF3F0FF)
+private val PillPrimary = PastelTheme.LavenderLight
+private val PillIdleText = Color(0xFF131722)
+private val PillFocus = PastelTheme.Lavender
+private val PillFocusText = PastelTheme.LavenderDark
+private val PillFocusRing = PastelTheme.LavenderLight
+private val SeekAccent = PastelTheme.Lavender
+private val StatusText = PastelTheme.TextPrimary
+private val StatusError = PastelTheme.Coral
+private val StatusSecondary = PastelTheme.TextMuted
 
 data class SubtitleTrackItem(
     val id: String,
@@ -227,11 +229,12 @@ fun PlayerScreen(
     modifier: Modifier = Modifier
 ) {
     var controlsOpen by remember { mutableStateOf(true) }
-
     var trackMenuOpen by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
 
     BackHandler {
         when {
+            showDeleteDialog -> showDeleteDialog = false
             trackMenuOpen -> trackMenuOpen = false
             controlsOpen -> controlsOpen = false
             else -> onBack()
@@ -241,16 +244,25 @@ fun PlayerScreen(
     val context = LocalContext.current
     val engine = remember(context) {
         TorrentEngine(File(context.cacheDir, "torrents")).apply {
-            // El material se borra al salir del reproductor. Si el borrado no
-            // se puede completar, queda al menos rastro en logcat y la app lo
+            // El material se borra al salir del reproductor (a menos que se marque conservar).
+            // Si el borrado no se puede completar, queda rastro en logcat y la app lo
             // vuelve a intentar en el siguiente arranque.
             onCleanupProblem = { message -> Log.w(CACHE_LOG_TAG, message) }
-            // Con DHT apagado, los metadatos dependen de los trackers del
-            // magnet: si algo se cuelga, "estado/peers" lo dice en logcat.
             onDiagnostic = { message -> Log.d(TORRENT_LOG_TAG, message) }
         }
     }
     val viewModel = remember(engine) { TorrentStreamViewModel(engine) }
+
+    val isKept by viewModel.isKept.collectAsState()
+    val actionNotification by viewModel.actionNotification.collectAsState()
+
+    // Oculta automáticamente el aviso de conservar/eliminar a los 3.5 segundos
+    LaunchedEffect(actionNotification) {
+        if (actionNotification != null) {
+            delay(3500)
+            viewModel.clearNotification()
+        }
+    }
 
     val audioReport = remember(context) { readAudioSupport(context) }
     val audioCapabilities = remember(context) {
@@ -490,9 +502,8 @@ fun PlayerScreen(
     }
 
     val handleKeyEvent: (androidx.compose.ui.input.key.KeyEvent) -> Boolean = { event ->
-        // Con el menú de pistas abierto, las teclas son del menú (navegación y
-        // foco); la barra no debe reaccionar ni reabrirse.
-        if (trackMenuOpen) {
+        // Con el diálogo de borrado o el menú de pistas abierto, las teclas son de esos elementos.
+        if (showDeleteDialog || trackMenuOpen) {
             false
         } else if (event.type == KeyEventType.KeyDown) {
             notifyInteraction()
@@ -599,6 +610,30 @@ fun PlayerScreen(
         // obtrusivos flotando sobre la película. Con la tecla OK del control remoto
         // (o D-pad, Menú, etc.) vuelven a aparecer.
 
+        // Notificación suave flotante (Conservar / Eliminar) con colores pasteles
+        AnimatedVisibility(
+            visible = actionNotification != null,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 190.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Color(0xF013192B))
+                    .border(1.5.dp, if (isKept) PastelTheme.Mint else PastelTheme.Coral, RoundedCornerShape(24.dp))
+                    .padding(horizontal = 24.dp, vertical = 12.dp)
+            ) {
+                Text(
+                    text = actionNotification ?: "",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (isKept) PastelTheme.MintLight else PastelTheme.Coral
+                )
+            }
+        }
+
         AnimatedVisibility(
             visible = controlsOpen,
             enter = fadeIn(),
@@ -628,6 +663,15 @@ fun PlayerScreen(
                     notifyInteraction()
                     openTrackMenu(false)
                 },
+                isKept = isKept,
+                onToggleKeep = {
+                    notifyInteraction()
+                    viewModel.toggleKeep()
+                },
+                onRequestDelete = {
+                    notifyInteraction()
+                    showDeleteDialog = true
+                },
                 statusLine = statusLine,
                 statusIsError = playerError != null,
                 audioLine = audioText(audioMimeType, audioTrackSupported, audioReport),
@@ -635,6 +679,16 @@ fun PlayerScreen(
                 durationMs = durationMs,
                 bufferedMs = bufferedMs,
                 onSeek = seekTo
+            )
+        }
+
+        if (showDeleteDialog) {
+            DeleteConfirmDialog(
+                onConfirm = {
+                    showDeleteDialog = false
+                    viewModel.deleteDownloadNow { onBack() }
+                },
+                onDismiss = { showDeleteDialog = false }
             )
         }
 
@@ -709,7 +763,8 @@ private fun TrackMenu(
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xF2101010))
+            .background(Color(0xF0101726))
+            .border(1.dp, PastelTheme.SurfaceBorder, RoundedCornerShape(18.dp))
             .padding(horizontal = 20.dp, vertical = 18.dp)
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -761,7 +816,7 @@ private fun TrackColumn(
         Text(
             text = title,
             style = MaterialTheme.typography.labelLarge,
-            color = StatusSecondary
+            color = PastelTheme.Sky
         )
 
         if (options.isEmpty()) {
@@ -805,9 +860,87 @@ private fun TrackColumn(
 }
 
 /**
+ * Tono visual de las píldoras de control, usando colores pasteles relajantes.
+ */
+private enum class PillTone {
+    Default,
+    Primary,
+    KeepActive,
+    Delete
+}
+
+/**
+ * Diálogo tranquilo de confirmación para eliminar completamente el archivo descargado.
+ */
+@Composable
+private fun DeleteConfirmDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val cancelFocus = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        repeat(3) {
+            if (runCatching { cancelFocus.requestFocus() }.isSuccess) return@LaunchedEffect
+            delay(50)
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xD9090D18))
+            .clickable(onClick = onDismiss),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .width(480.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(Color(0xF5141A2D))
+                .border(1.5.dp, PastelTheme.Coral, RoundedCornerShape(22.dp))
+                .clickable(enabled = false) { }
+                .padding(30.dp)
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "¿Eliminar archivo descargado?",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = PastelTheme.Coral
+                )
+                Text(
+                    text = "Se borrará de inmediato el video y todos los datos descargados del almacenamiento de la TV para liberar espacio.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = PastelTheme.TextSecondary
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ControlPill(
+                        text = "Cancelar",
+                        onClick = onDismiss,
+                        focusRequester = cancelFocus
+                    )
+                    ControlPill(
+                        text = "🗑 Sí, eliminar completamente",
+                        onClick = onConfirm,
+                        tone = PillTone.Delete
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
  * Barra inferior: estado arriba, seek al medio, botones abajo.
  *
- * El fondo es un degradado (transparente → negro), no una banda de color plano:
+ * El fondo es un degradado pastel noche, no una banda de color plano:
  * así el video sigue viéndose detrás y el texto nunca pierde contraste.
  */
 @Composable
@@ -822,6 +955,9 @@ private fun ControlBar(
     subtitleLabel: String,
     onOpenAudioTracks: () -> Unit,
     onOpenSubtitleTracks: () -> Unit,
+    isKept: Boolean,
+    onToggleKeep: () -> Unit,
+    onRequestDelete: () -> Unit,
     statusLine: String,
     statusIsError: Boolean,
     audioLine: String,
@@ -845,11 +981,7 @@ private fun ControlBar(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(Color(0x00000000), Color(0xB3060606), Color(0xF5060606))
-                )
-            )
+            .background(PastelTheme.PlayerBarGradient)
             // Come el toque sobre el fondo del footer: apuntar a un botón y
             // errarle por 10px no debería cerrar toda la barra.
             .pointerInput(Unit) { detectTapGestures { } }
@@ -888,34 +1020,61 @@ private fun ControlBar(
                 onCenterKey = onTogglePlay
             )
 
-            Row(
+            LazyRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                ControlPill(text = "← Volver", onClick = onBack)
+                item {
+                    ControlPill(text = "← Volver", onClick = onBack)
+                }
 
-                ControlPill(
-                    text = if (isPlaying) "Pausa" else "▶ Reproducir",
-                    onClick = onTogglePlay,
-                    primary = true,
-                    focusRequester = playFocusRequester
-                )
+                item {
+                    ControlPill(
+                        text = if (isPlaying) "Pausa" else "▶ Reproducir",
+                        onClick = onTogglePlay,
+                        primary = true,
+                        tone = PillTone.Primary,
+                        focusRequester = playFocusRequester
+                    )
+                }
 
-                ControlPill(
-                    text = if (isZoom) "Pantalla: Llenar" else "Pantalla: Ajustar",
-                    onClick = onToggleZoom
-                )
+                item {
+                    ControlPill(
+                        text = if (isZoom) "Pantalla: Llenar" else "Pantalla: Ajustar",
+                        onClick = onToggleZoom
+                    )
+                }
 
-                ControlPill(
-                    text = audioLabel,
-                    onClick = onOpenAudioTracks
-                )
+                item {
+                    ControlPill(
+                        text = audioLabel,
+                        onClick = onOpenAudioTracks
+                    )
+                }
 
-                ControlPill(
-                    text = subtitleLabel,
-                    onClick = onOpenSubtitleTracks
-                )
+                item {
+                    ControlPill(
+                        text = subtitleLabel,
+                        onClick = onOpenSubtitleTracks
+                    )
+                }
+
+                item {
+                    ControlPill(
+                        text = if (isKept) "✓ Archivo conservado" else "💾 Conservar archivo",
+                        onClick = onToggleKeep,
+                        tone = if (isKept) PillTone.KeepActive else PillTone.Default
+                    )
+                }
+
+                item {
+                    ControlPill(
+                        text = "🗑 Eliminar completamente",
+                        onClick = onRequestDelete,
+                        tone = PillTone.Delete
+                    )
+                }
             }
         }
     }
@@ -1037,7 +1196,7 @@ private fun SeekRow(
                 val corner = CornerRadius(barHeight / 2f, barHeight / 2f)
 
                 drawRoundRect(
-                    color = if (enabled) Color(0x4DFFFFFF) else Color(0x26FFFFFF),
+                    color = if (enabled) Color(0x33EDE9FE) else Color(0x1AEDEBFE),
                     topLeft = Offset(0f, top),
                     size = Size(size.width, barHeight),
                     cornerRadius = corner
@@ -1045,7 +1204,7 @@ private fun SeekRow(
 
                 if (bufferedFraction > 0f) {
                     drawRoundRect(
-                        color = Color(0x80FFFFFF),
+                        color = Color(0x66BAE6FD),
                         topLeft = Offset(0f, top),
                         size = Size(size.width * bufferedFraction, barHeight),
                         cornerRadius = corner
@@ -1054,7 +1213,7 @@ private fun SeekRow(
 
                 if (shownFraction > 0f) {
                     drawRoundRect(
-                        color = if (isFocused) SeekAccent else Color(0xFFFFFFFF),
+                        brush = PastelTheme.SeekProgressGradient,
                         topLeft = Offset(0f, top),
                         size = Size(size.width * shownFraction, barHeight),
                         cornerRadius = corner
@@ -1065,7 +1224,7 @@ private fun SeekRow(
                     val center = Offset(size.width * shownFraction, centerY)
                     drawCircle(color = SeekAccent, radius = 11.dp.toPx(), center = center)
                     drawCircle(
-                        color = Color(0xFF1C1300),
+                        color = PastelTheme.LavenderDark,
                         radius = 4.dp.toPx(),
                         center = center
                     )
@@ -1083,9 +1242,8 @@ private fun SeekRow(
 }
 
 /**
- * Píldora de acción. Clara por defecto (fondo blanco, texto casi negro) para
- * que tenga contraste real sobre cualquier video; al enfocarse pasa a ámbar con
- * un anillo claro, que es la señal de foco de 10-foot UI.
+ * Píldora de acción con tonos pasteles suaves y descansados para la vista.
+ * Al ganar foco resalta con lavanda pastel suave y anillo claro.
  */
 @Composable
 private fun ControlPill(
@@ -1093,6 +1251,7 @@ private fun ControlPill(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     primary: Boolean = false,
+    tone: PillTone = if (primary) PillTone.Primary else PillTone.Default,
     focusRequester: FocusRequester? = null
 ) {
     var isFocused by remember { mutableStateOf(false) }
@@ -1103,11 +1262,33 @@ private fun ControlPill(
 
     val shape = RoundedCornerShape(percent = 50)
     val containerColor = when {
+        isFocused && tone == PillTone.Delete -> PastelTheme.Coral
+        isFocused && tone == PillTone.KeepActive -> PastelTheme.Mint
         isFocused -> PillFocus
-        primary -> PillPrimary
+        tone == PillTone.Delete -> Color(0x33FECDD3)
+        tone == PillTone.KeepActive -> PastelTheme.Mint
+        tone == PillTone.Primary -> PillPrimary
         else -> PillIdle
     }
-    val contentColor = if (isFocused) PillFocusText else PillIdleText
+
+    val contentColor = when {
+        isFocused && tone == PillTone.Delete -> PastelTheme.CoralDark
+        isFocused && tone == PillTone.KeepActive -> PastelTheme.MintDark
+        isFocused -> PillFocusText
+        tone == PillTone.Delete -> PastelTheme.Coral
+        tone == PillTone.KeepActive -> PastelTheme.MintDark
+        tone == PillTone.Primary -> PastelTheme.LavenderDark
+        else -> PillIdleText
+    }
+
+    val borderColor = when {
+        isFocused && tone == PillTone.Delete -> PastelTheme.Peach
+        isFocused && tone == PillTone.KeepActive -> PastelTheme.MintLight
+        isFocused -> PillFocusRing
+        tone == PillTone.Delete -> PastelTheme.Coral
+        tone == PillTone.KeepActive -> PastelTheme.MintDark
+        else -> Color(0x1F94A3B8)
+    }
 
     val focusModifier = if (focusRequester != null) {
         Modifier.focusRequester(focusRequester)
@@ -1125,7 +1306,7 @@ private fun ControlPill(
             .background(color = containerColor, shape = shape)
             .border(
                 width = if (isFocused) 3.dp else 1.dp,
-                color = if (isFocused) PillFocusRing else Color(0x14000000),
+                color = borderColor,
                 shape = shape
             )
             .then(focusModifier)

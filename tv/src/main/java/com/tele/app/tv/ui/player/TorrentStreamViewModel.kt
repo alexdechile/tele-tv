@@ -34,7 +34,46 @@ class TorrentStreamViewModel(
     private val _ready = MutableStateFlow<TorrentStreamInfo?>(null)
     val ready: StateFlow<TorrentStreamInfo?> = _ready.asStateFlow()
 
+    /** Si el usuario marcó conservar el archivo descargado en disco al salir. */
+    private val _isKept = MutableStateFlow(false)
+    val isKept: StateFlow<Boolean> = _isKept.asStateFlow()
+
+    /** Mensaje de aviso breve tras tocar conservar o eliminar. */
+    private val _actionNotification = MutableStateFlow<String?>(null)
+    val actionNotification: StateFlow<String?> = _actionNotification.asStateFlow()
+
     private var job: Job? = null
+
+    /** Conmuta entre conservar o eliminar el archivo al salir. */
+    fun toggleKeep() {
+        val next = !_isKept.value
+        _isKept.value = next
+        engine.setKeepDownloaded(next)
+        _actionNotification.value = if (next) {
+            "✓ Archivo marcado para conservar en disco"
+        } else {
+            "El archivo se eliminará al salir"
+        }
+    }
+
+    /** Borra inmediatamente el archivo bajado del disco. */
+    fun deleteDownloadNow(onDeleted: () -> Unit) {
+        job?.cancel()
+        job = null
+        _ready.value = null
+        val ok = engine.deleteActiveDownloadNow()
+        _isKept.value = false
+        _actionNotification.value = if (ok) {
+            "🗑 Archivo eliminado completamente del disco"
+        } else {
+            "No había archivo para eliminar"
+        }
+        onDeleted()
+    }
+
+    fun clearNotification() {
+        _actionNotification.value = null
+    }
 
     fun start(magnetUri: String, fileIndex: Int?) {
         if (job?.isActive == true) return

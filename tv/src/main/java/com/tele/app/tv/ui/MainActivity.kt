@@ -38,6 +38,7 @@ import androidx.tv.material3.Text
 import com.tele.app.tv.crash.CrashReporter
 import com.tele.app.tv.ui.components.TeleCard
 import com.tele.app.tv.ui.navigation.AppNavigator
+import com.tele.app.tv.ui.theme.PastelTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -79,7 +80,7 @@ class MainActivity : ComponentActivity() {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black)
+                    .background(PastelTheme.AppAmbientGradient)
             ) {
                 if (showCrash && previousCrash != null) {
                     CrashScreen(

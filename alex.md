@@ -1,6 +1,15 @@
 # Tele TV - Bitácora de Proyecto
 
 ## Último Realizado
+- **Apariencia con colores pasteles, degradés relajantes y gestión de descargas (Conservar / Eliminar):**
+  - **Paleta pastel y degradés serenos (`PastelTheme`):**
+    - Se eliminó el fondo negro muerto (`#000000`) en toda la app (`MainActivity`, `MainScreen`, `DetailScreen`, `SearchScreen`, `PlayerScreen`), sustituyéndolo por un degradado ambiental envolvente y relajante (`AppAmbientGradient`: azul noche `#0B0F19` → pizarra suave `#101726` → lila noche acogedor `#16142A`).
+    - Paleta de diseño basada en tonos pasteles que transmiten tranquilidad en salas de estar oscuras: **Lavanda pastel** (`#C7B9FF`, foco activo principal y títulos), **Menta suave / Sage** (`#A7F3D0`, éxito y conservación), **Celeste sereno** (`#BAE6FD`, filtros y detalles), **Coral suave** (`#FECDD3`, eliminación y alertas no estridentes).
+    - En el reproductor se sustituyó el foco ámbar chillón por lavanda pastel; la barra de seek se transformó con un degradado suave de progreso (menta → celeste → lavanda) y buffer celeste translúcido; y la barra de controles ahora tiene un degradado vertical de noche pastel.
+  - **Gestión de archivos descargados (Conservar y/o Eliminar completamente):**
+    - **Botón `[💾 Conservar archivo]` / `[✓ Archivo conservado]`:** integrado directamente en la botonera navegable con D-pad. Conmuta `keepOnStop` en `TorrentEngine`, garantizando que al cerrar el reproductor la película o serie descargada permanezca en almacenamiento en lugar de ser eliminada automáticamente por la caché.
+    - **Botón `[🗑 Eliminar completamente]`:** estilizado en coral pastel suave. Despliega un diálogo de confirmación seguro enfocado por defecto en "Cancelar" para evitar borrados accidentales. Al confirmar, ejecuta `TorrentEngine.deleteActiveDownloadNow()`: detiene la subida y la descarga, remueve el handle de libtorrent, purga y borra inmediatamente el directorio del disco liberando almacenamiento, y regresa de forma limpia al detalle.
+    - **Aviso flotante en pantalla:** cartelito animado con bordes pasteles que confirma de inmediato acciones ("✓ Archivo marcado para conservar en disco" o "🗑 Archivo eliminado completamente") con auto-ocultamiento tras 3.5 segundos.
 - **Arranque del streaming medido y corregido (KM6, misma película y fuente):**
   - La causa del arranque lento **no** era el deadline ni `piece_extent_affinity`: con 1268 piezas descargables y 178 peers, libtorrent pide *rarest first* por todo el archivo (cola real `0,1,388,1164,82,549`) y reparte el ancho de banda entre decenas de piezas incompletas.
   - Correcciones medidas: quitar `SEQUENTIAL_DOWNLOAD` (anulaba el deadline: 52 s → 26 s), poner el resto del archivo en `IGNORE` mientras se espera el inicio (148 s → 72 s al primer frame, primera pieza 16 s), y liberar el resto solo cuando el head está entero.

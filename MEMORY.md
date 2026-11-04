@@ -1,6 +1,11 @@
 # Tele TV - Memoria y Estado del Proyecto
 
-## Estado Actual de la Sesión (2026-10-30, noche)
+## Estado Actual de la Sesión (2026-11-04)
+- **Apariencia visual y degradados:** Creado `PastelTheme` con degradado ambiental (`AppAmbientGradient`) y tonos pasteles relajantes (lavanda, menta, celeste, coral). Aplicado en toda la navegación (Main, Detail, Search, Player).
+- **Gestión de archivos bajados:** Botones en reproductor para "Conservar archivo" (`keepOnStop = true`) y "Eliminar completamente" (`deleteActiveDownloadNow()`) con modal de confirmación y aviso flotante pastel.
+- **Pruebas unitarias:** Verificadas y pasando 100% en `core` y `tv`.
+
+## Estado Anterior de la Sesión (2026-10-30, noche)
 - **Últimos commits:** `d4b7807` (sinopsis al desplegar la ficha), `c90ecf5` (botón de ficha + género Música),
   `c4aee2b` (foco de la primera fuente), `5a82340` (la ficha no se escapa), `1ea0fd0` (buscador y detalle),
   `0eaeef9` (inicio del archivo primero).

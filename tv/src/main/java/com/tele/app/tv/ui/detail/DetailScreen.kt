@@ -30,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.ContentScale
@@ -38,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
+import androidx.tv.material3.SurfaceDefaults
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import com.tele.app.data.addon.AddonRepository
@@ -50,6 +52,7 @@ import com.tele.app.data.enrich.EnrichedInfo
 import com.tele.app.data.enrich.WikipediaEnricher
 import com.tele.app.tv.ui.AppGraph
 import com.tele.app.tv.ui.components.SkeletonDetail
+import com.tele.app.tv.ui.theme.PastelTheme
 import kotlinx.coroutines.CancellationException
 import kotlin.math.round
 import com.tele.app.tv.ui.components.TeleCard
@@ -137,62 +140,70 @@ fun DetailScreen(
         }
     }
 
-    Surface(modifier = modifier.fillMaxSize()) {
-        Row(
+    Surface(
+        modifier = modifier.fillMaxSize(),
+        colors = SurfaceDefaults.colors(containerColor = Color.Transparent)
+    ) {
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 36.dp, vertical = 28.dp),
-            horizontalArrangement = Arrangement.spacedBy(28.dp)
+                .background(PastelTheme.AppAmbientGradient)
         ) {
-            Box(modifier = Modifier.width(220.dp).fillMaxHeight()) {
-                AsyncImage(
-                    model = meta.poster,
-                    contentDescription = meta.name,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 36.dp, vertical = 28.dp),
+                horizontalArrangement = Arrangement.spacedBy(28.dp)
+            ) {
+                Box(modifier = Modifier.width(220.dp).fillMaxHeight()) {
+                    AsyncImage(
+                        model = meta.poster,
+                        contentDescription = meta.name,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
 
-            Column(modifier = Modifier.fillMaxHeight()) {
-                Text(
-                    text = meta.name,
-                    style = MaterialTheme.typography.displaySmall,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Text(
-                    text = metaLine(meta, detail),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                detail?.genres?.takeIf { it.isNotEmpty() }?.let { genres ->
-                    Spacer(modifier = Modifier.height(2.dp))
+                Column(modifier = Modifier.fillMaxHeight()) {
                     Text(
-                        text = genres.joinToString(" · "),
+                        text = meta.name,
+                        style = MaterialTheme.typography.displaySmall,
+                        color = PastelTheme.LavenderLight
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = metaLine(meta, detail),
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        color = PastelTheme.Sky
                     )
-                }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                    detail?.genres?.takeIf { it.isNotEmpty() }?.let { genres ->
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = genres.joinToString(" · "),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = PastelTheme.Mint,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
 
-                // La sinopsis va corta y fija: el espacio vertical de una TV es
-                // el recurso escaso. Lo que se corta se lee completo abajo, en
-                // la lista desplazable.
-                (meta.description ?: enriched?.overview)?.let { description ->
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // La sinopsis va corta y fija: el espacio vertical de una TV es
+                    // el recurso escaso. Lo que se corta se lee completo abajo, en
+                    // la lista desplazable.
+                    (meta.description ?: enriched?.overview)?.let { description ->
+                        Text(
+                            text = description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = PastelTheme.TextSecondary,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -255,6 +266,7 @@ fun DetailScreen(
             }
         }
     }
+}
 }
 
 /**
