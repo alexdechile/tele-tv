@@ -27,13 +27,13 @@ class TorrentEngineSettingsTest {
 
         assertEquals(
             "la TV no reparte el material de nadie",
-            32,
+            64,
             settings.uploadRateLimitKbps
         )
-        assertEquals(32 * 1024, settings.uploadRateLimitBytesPerSecond)
+        assertEquals(64 * 1024, settings.uploadRateLimitBytesPerSecond)
         assertTrue(
-            "a 32 KB/s una pieza de 1 MB tarda mas de 30 s: el enjambre no la puede pedir",
-            settings.uploadRateLimitBytesPerSecond <= 32 * 1024
+            "a 64 KB/s no satura la subida",
+            settings.uploadRateLimitBytesPerSecond <= 64 * 1024
         )
         assertTrue(
             "pero tiene que alcanzar para el handshake (68 bytes) sin demoras",
@@ -48,7 +48,7 @@ class TorrentEngineSettingsTest {
         // handshake: por eso el default no puede ser ni 0 ni "casi 0".
         val settings = TorrentEngineSettings(uploadRateLimitKbps = 0)
         assertEquals(0, settings.uploadRateLimitBytesPerSecond)
-        assertTrue("el default real es 32 KB/s", TorrentEngineSettings().uploadRateLimitBytesPerSecond > 1024)
+        assertTrue("el default real es 64 KB/s", TorrentEngineSettings().uploadRateLimitBytesPerSecond > 1024)
     }
 
     @Test
@@ -59,19 +59,19 @@ class TorrentEngineSettingsTest {
     }
 
     @Test
-    fun `el DHT viene apagado`() {
-        assertFalse("sin DHT se anuncia a menos gente", TorrentEngineSettings().enableDht)
+    fun `el DHT viene encendido con privacidad para resolver metadatos`() {
+        assertTrue("con DHT se resuelven metadatos sin depender de trackers UDP", TorrentEngineSettings().enableDht)
     }
 
     @Test
-    fun `las busquedas DHT piden privacidad aunque el DHT este apagado`() {
+    fun `las busquedas DHT piden privacidad`() {
         val settings = TorrentEngineSettings()
 
         assertTrue(
-            "v3.1: la busqueda DHT no debe revelar el info-hash completo",
+            "v3.1: la busqueda DHT no debe revelar el info-hash completo (BEP-53)",
             settings.dhtPrivacyLookups
         )
-        assertFalse("pero el DHT sigue apagado por defecto", settings.enableDht)
+        assertTrue("el DHT esta activo con privacidad", settings.enableDht)
     }
 
     @Test
