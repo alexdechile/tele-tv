@@ -181,7 +181,17 @@ class TorrentEngine(
             if (nowHead - headReported >= DIAGNOSTIC_INTERVAL_MS) {
                 headReported = nowHead
                 val got = head.count { runCatching { handle.havePiece(it) }.getOrDefault(false) }
-                onDiagnostic?.invoke("head: $got/${head.last - head.first + 1} piezas del inicio")
+                // Prioridad realmente aplicada y qué piezas se están pidiendo:
+                // sin esto no se distingue "libtorrent ignora el deadline" de
+                // "la prioridad nunca se aplicó".
+                val prios = head.map { runCatching { handle.piecePriority(it).swig() }.getOrDefault(-1) }
+                val queue = runCatching {
+                    handle.downloadQueue.take(6).joinToString(",") { it.pieceIndex().toString() }
+                }.getOrDefault("?")
+                onDiagnostic?.invoke(
+                    "head: $got/${head.last - head.first + 1} piezas del inicio " +
+                        "prios=$prios cola=[$queue]"
+                )
             }
             if (System.currentTimeMillis() >= pieceDeadline) break
             delay(PROGRESS_INTERVAL_MS)
