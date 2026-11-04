@@ -173,7 +173,10 @@ class TorrentEngine(
         val head = StreamPriorities.headPieces(firstPiece, lastPiece)
         var headReported = 0L
         while (currentCoroutineContext().isActive && !handle.havePiece(firstPiece)) {
-            StreamPriorities.boostHead(handle, firstPiece, lastPiece)
+            // Solo prioridad: el deadline se puso una vez en prepareDownload.
+            // Re-aplicarlo cada vuelta reordena las peticiones y cancela los
+            // bloques en vuelo (medido: cola mezclada y primera pieza a 26 s).
+            StreamPriorities.reaffirmPriorities(handle, firstPiece, lastPiece)
             emitProgress(handle)?.let { emit(it) }
             // Cuántas piezas del inicio ya están: distingue "el head avanza en
             // orden, lento" de "libtorrent ignora el head y baja otra cosa".

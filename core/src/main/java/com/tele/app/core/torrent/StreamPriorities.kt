@@ -60,6 +60,25 @@ object StreamPriorities {
     }
 
     /**
+     * Reafirma **solo la prioridad** del inicio, sin volver a tocar el deadline.
+     *
+     * Medido en el KM6 con jlibtorrent 2.0.15.3: re-aplicar
+     * `setPieceDeadline(piece, 0)` en cada vuelta del bucle (cada segundo)
+     * reordena las peticiones y descarta los bloques que ya estaban en vuelo.
+     * El resultado fue una cola de descarga mezclada (`[3,73,825,0,1,2]`) con
+     * la prioridad bien puesta (`prios=[7,7,7,7,7,7,7,7]`), 0 de 8 piezas del
+     * inicio a los 20 s y la primera pieza recién a los 26 s.
+     *
+     * El deadline se pone una sola vez, cuando el torrent arranca; acá se
+     * mantiene la prioridad por si libtorrent la reacomoda al entrar peers.
+     */
+    fun reaffirmPriorities(handle: TorrentHandle, firstPiece: Int, lastPiece: Int, window: Int = HEAD_WINDOW) {
+        for (piece in headPieces(firstPiece, lastPiece, window)) {
+            runCatching { handle.piecePriority(piece, Priority.SEVEN) }
+        }
+    }
+
+    /**
      * Versión sin libtorrent, con las dos acciones inyectadas: es la que se
      * prueba en la JVM sin cargar el nativo.
      */
