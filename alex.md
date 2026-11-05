@@ -1,6 +1,9 @@
 # Tele TV - Bitácora de Proyecto
 
 ## Último Realizado
+- **Ajuste de proporciones para 1080p y limpieza del reproductor:**
+  - **Limpieza de controles del reproductor:** Se eliminó el botón redundante de subtítulos de la barra de reproducción; el botón de pistas ahora dice `[💬 Audio / Pistas]` y despliega el menú completo donde se eligen tanto el audio como los subtítulos en un solo lugar.
+  - **Optimización de escala para 1080p (960×540 dp @ 320dpi):** Se redujo el tamaño de las carátulas en el catálogo de 180×270 dp a 130×195 dp (proporción 2:3 ágil) y los paddings excesivos, evitando la sensación de "pantalla gigante" y permitiendo ver múltiples filas y carátulas simultáneamente en la TV.
 - **Ajuste de tipografía, contraste de botones y solución al bloqueo de metadatos en torrents:**
   - **Resolución de metadatos y arranque de descarga:**
     - Al tener `enableDht = false`, los magnets quedaban en `peers=0` si los trackers UDP estaban filtrados por el router/ISP o saturados.

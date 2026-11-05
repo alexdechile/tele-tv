@@ -131,14 +131,14 @@ private fun CatalogContent(
         val firstCardRequester = remember { FocusRequester() }
 
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 180.dp),
+            columns = GridCells.Adaptive(minSize = 130.dp),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 48.dp, vertical = 36.dp),
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            contentPadding = PaddingValues(horizontal = 32.dp, vertical = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item(key = "header", span = { GridItemSpan(maxLineSpan) }) {
-                Box(modifier = Modifier.padding(bottom = 12.dp)) { header() }
+                Box(modifier = Modifier.padding(bottom = 8.dp)) { header() }
             }
             gridItemsIndexed(allItems, key = { _, item -> item.id }) { index, item ->
                 PosterCard(
@@ -151,8 +151,8 @@ private fun CatalogContent(
     } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 48.dp, vertical = 36.dp),
-            verticalArrangement = Arrangement.spacedBy(32.dp)
+            contentPadding = PaddingValues(horizontal = 32.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             item { header() }
             items(rows, key = { it.id }) { row ->
@@ -261,7 +261,7 @@ private fun CatalogRow(
         }
 
         LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier.focusRestorer { firstCardRequester }
         ) {
             itemsIndexed(row.items, key = { _, item -> item.id }) { index, item ->
@@ -276,8 +276,7 @@ private fun CatalogRow(
 }
 
 /**
- * Carátula enfocable. Al ganar foco la tarjeta de tv-material se escala y
- * dibuja borde/glow, que es la señal visual de "10-foot UI".
+ * Carátula enfocable adaptada a pantalla 1080p en TV (proporción 2:3 ágil y equilibrada).
  */
 @Composable
 private fun PosterCard(
@@ -292,14 +291,14 @@ private fun PosterCard(
     }
 
     Column(
-        modifier = Modifier.width(180.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        modifier = Modifier.width(130.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         TeleCard(
             onClick = onClick,
             modifier = Modifier
-                .width(180.dp)
-                .height(270.dp)
+                .width(130.dp)
+                .height(195.dp)
                 .then(focusModifier)
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
@@ -313,7 +312,7 @@ private fun PosterCard(
         }
         Text(
             text = item.name,
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.SemiBold,
             color = PastelTheme.TextSecondary,
             maxLines = 1,

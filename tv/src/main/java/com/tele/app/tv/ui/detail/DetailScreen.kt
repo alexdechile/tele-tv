@@ -153,10 +153,10 @@ fun DetailScreen(
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 36.dp, vertical = 28.dp),
-                horizontalArrangement = Arrangement.spacedBy(28.dp)
+                    .padding(horizontal = 28.dp, vertical = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                Box(modifier = Modifier.width(220.dp).fillMaxHeight()) {
+                Box(modifier = Modifier.width(180.dp).fillMaxHeight()) {
                     AsyncImage(
                         model = meta.poster,
                         contentDescription = meta.name,

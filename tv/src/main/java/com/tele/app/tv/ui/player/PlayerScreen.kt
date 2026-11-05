@@ -654,14 +654,9 @@ fun PlayerScreen(
                     isFullScreenZoom = !isFullScreenZoom
                 },
                 audioLabel = shortAudioLabel(availableAudio, selectedAudioId),
-                subtitleLabel = subtitleButtonText,
                 onOpenAudioTracks = {
                     notifyInteraction()
                     openTrackMenu(true)
-                },
-                onOpenSubtitleTracks = {
-                    notifyInteraction()
-                    openTrackMenu(false)
                 },
                 isKept = isKept,
                 onToggleKeep = {
@@ -952,9 +947,7 @@ private fun ControlBar(
     isZoom: Boolean,
     onToggleZoom: () -> Unit,
     audioLabel: String,
-    subtitleLabel: String,
     onOpenAudioTracks: () -> Unit,
-    onOpenSubtitleTracks: () -> Unit,
     isKept: Boolean,
     onToggleKeep: () -> Unit,
     onRequestDelete: () -> Unit,
@@ -1048,15 +1041,8 @@ private fun ControlBar(
 
                 item {
                     ControlPill(
-                        text = audioLabel,
+                        text = "💬 $audioLabel",
                         onClick = onOpenAudioTracks
-                    )
-                }
-
-                item {
-                    ControlPill(
-                        text = subtitleLabel,
-                        onClick = onOpenSubtitleTracks
                     )
                 }
 
