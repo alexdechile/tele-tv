@@ -5,7 +5,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -38,6 +42,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.tv.material3.Border
+import androidx.tv.material3.CardBorder
+import androidx.tv.material3.CardColors
+import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
@@ -53,10 +61,11 @@ import com.tele.app.data.enrich.EnrichedInfo
 import com.tele.app.data.enrich.WikipediaEnricher
 import com.tele.app.tv.ui.AppGraph
 import com.tele.app.tv.ui.components.SkeletonDetail
+import com.tele.app.tv.ui.components.TeleCard
 import com.tele.app.tv.ui.theme.PastelTheme
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlin.math.round
-import com.tele.app.tv.ui.components.TeleCard
 
 /** Estado de la búsqueda de fuentes. */
 sealed interface StreamsState {
@@ -120,6 +129,12 @@ fun DetailScreen(
     var selectedEpisode by remember(meta.id) { mutableStateOf<Episode?>(null) }
     var selectedSeason by remember(meta.id) { mutableStateOf<Int?>(null) }
     var wikiExpanded by remember(meta.id) { mutableStateOf(false) }
+    var synopsisExpanded by remember(meta.id) { mutableStateOf(false) }
+    var showFullOverviewDialog by remember(meta.id) { mutableStateOf(false) }
+
+    BackHandler(enabled = showFullOverviewDialog) {
+        showFullOverviewDialog = false
+    }
 
     val seasons = detail?.seasons.orEmpty()
     val showSeasons = meta.isSeries && seasons.isNotEmpty() && selectedEpisode == null
@@ -165,7 +180,7 @@ fun DetailScreen(
                     )
                 }
 
-                Column(modifier = Modifier.fillMaxHeight()) {
+                Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
                     Text(
                         text = meta.name,
                         style = MaterialTheme.typography.headlineMedium,
@@ -196,17 +211,31 @@ fun DetailScreen(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // La sinopsis va corta y fija: el espacio vertical de una TV es
-                    // el recurso escaso. Lo que se corta se lee completo abajo, en
-                    // la lista desplazable.
+                    // Sinopsis desplegable y botón de ficha completa
                     (meta.description ?: enriched?.overview)?.let { description ->
                         Text(
                             text = description,
                             style = MaterialTheme.typography.bodySmall,
                             color = PastelTheme.TextSecondary,
-                            maxLines = 2,
+                            maxLines = if (synopsisExpanded) 8 else 2,
                             overflow = TextOverflow.Ellipsis
                         )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (description.length > 100 || synopsisExpanded) {
+                                Pill(
+                                    text = if (synopsisExpanded) "▲ Menos" else "▼ Ver más…",
+                                    onClick = { synopsisExpanded = !synopsisExpanded }
+                                )
+                            }
+                            Pill(
+                                text = "📖 Ficha y reseña completa",
+                                onClick = { showFullOverviewDialog = true }
+                            )
+                        }
                     }
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -258,9 +287,7 @@ fun DetailScreen(
                         header = enriched?.takeIf { it.hasContent },
                         detail = detail,
                         wikiExpanded = wikiExpanded,
-                        // La sinopsis en español solo se despliega si arriba se
-                        // está mostrando la descripción en inglés de Cinemeta.
-                        wikiOverviewLines = if (meta.description != null) 8 else 0,
+                        wikiOverviewLines = if (wikiExpanded) Int.MAX_VALUE else 0,
                         onToggleWiki = { wikiExpanded = !wikiExpanded },
                         onPersonSelected = onPersonSelected,
                         onPlatformClick = { platform -> launchStreamingPlatform(context, platform) },
@@ -268,6 +295,15 @@ fun DetailScreen(
                     )
                 }
             }
+        }
+
+        if (showFullOverviewDialog) {
+            FullOverviewDialog(
+                meta = meta,
+                detail = detail,
+                enriched = enriched,
+                onClose = { showFullOverviewDialog = false }
+            )
         }
     }
 }
@@ -334,7 +370,7 @@ private fun WikipediaCard(
                     text = awards,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
-                    maxLines = if (expanded) 3 else 1,
+                    maxLines = if (expanded) Int.MAX_VALUE else 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
@@ -366,7 +402,7 @@ private fun WikipediaCard(
                     text = "${info.crewLabel}: ${crewMembers.joinToString(", ")}",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
+                    maxLines = if (expanded) Int.MAX_VALUE else 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
@@ -377,7 +413,7 @@ private fun WikipediaCard(
                 text = biography,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = biographyLines,
+                maxLines = if (expanded) Int.MAX_VALUE else biographyLines,
                 overflow = TextOverflow.Ellipsis
             )
         }
@@ -405,10 +441,10 @@ private fun WikipediaCard(
                 Spacer(modifier = Modifier.height(4.dp))
             } else {
                 Text(
-                    text = "Reparto: ${castMembers.take(5).joinToString(", ")}",
+                    text = "Reparto: ${castMembers.take(if (expanded) 20 else 5).joinToString(", ")}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = castLines,
+                    maxLines = if (expanded) Int.MAX_VALUE else castLines,
                     overflow = TextOverflow.Ellipsis
                 )
             }
@@ -421,7 +457,7 @@ private fun WikipediaCard(
                 text = "Sinopsis (Wikipedia): $overview",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = overviewLines,
+                maxLines = if (expanded) Int.MAX_VALUE else overviewLines,
                 overflow = TextOverflow.Ellipsis
             )
         }
@@ -671,15 +707,19 @@ private fun EpisodeRow(episode: Episode, onClick: () -> Unit) {
 
 /** Píldora enfocable (mismo patrón que el resto de la app: `Card`, que ya trae foco). */
 @Composable
-private fun Pill(text: String, onClick: () -> Unit) {
-    TeleCard(onClick = onClick, modifier = Modifier.height(48.dp)) {
+private fun Pill(
+    text: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    TeleCard(onClick = onClick, modifier = modifier.height(44.dp)) {
         Box(
             modifier = Modifier
                 .fillMaxHeight()
-                .padding(horizontal = 18.dp),
+                .padding(horizontal = 16.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text(text = text, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+            Text(text = text, style = MaterialTheme.typography.labelMedium, maxLines = 1)
         }
     }
 }
@@ -799,14 +839,52 @@ private fun Hint(text: String) {
     )
 }
 
+private val HARDCODED_SUB_REGEX = Regex(
+    """\b(HC|HARDCODED|HARD-CODED|KORSUB|KOR-SUB|KORSUBS|SUBBED|ENSUBBED|BURNT|BURNED)\b""",
+    RegexOption.IGNORE_CASE
+)
+
+fun StreamSource.hasHardcodedSubtitles(): Boolean {
+    val text = listOfNotNull(label, detail, fileName).joinToString(" ")
+    return HARDCODED_SUB_REGEX.containsMatchIn(text)
+}
+
 @Composable
 private fun StreamCard(
     stream: StreamSource,
     onClick: () -> Unit,
     focusRequester: FocusRequester? = null
 ) {
+    val isHardcoded = stream.hasHardcodedSubtitles()
+
+    val cardColors = if (isHardcoded) {
+        CardDefaults.colors(
+            containerColor = Color(0x33FEF08A),
+            focusedContainerColor = PastelTheme.YellowPastel,
+            contentColor = PastelTheme.TextPrimary,
+            focusedContentColor = PastelTheme.YellowPastelDark
+        )
+    } else {
+        CardDefaults.colors()
+    }
+
+    val cardBorder = if (isHardcoded) {
+        CardDefaults.border(
+            border = Border(
+                border = BorderStroke(1.5.dp, PastelTheme.YellowPastel.copy(alpha = 0.8f))
+            ),
+            focusedBorder = Border(
+                border = BorderStroke(2.dp, PastelTheme.YellowPastel)
+            )
+        )
+    } else {
+        CardDefaults.border()
+    }
+
     TeleCard(
         onClick = onClick,
+        colors = cardColors,
+        border = cardBorder,
         modifier = Modifier
             .fillMaxWidth()
             .height(84.dp)
@@ -820,12 +898,32 @@ private fun StreamCard(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stream.label,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (isHardcoded) {
+                        Surface(
+                            colors = SurfaceDefaults.colors(containerColor = PastelTheme.YellowPastel),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = "⚠️ Subs pegados",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = PastelTheme.YellowPastelDark,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                    Text(
+                        text = stream.label,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
                 stream.detail?.let { detail ->
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = detail.replace("\n", " · "),
                         style = MaterialTheme.typography.bodySmall,
@@ -848,6 +946,191 @@ private fun StreamCard(
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Diálogo de pantalla completa con la ficha técnica, sinopsis y reseñas completas.
+ * Permite navegar y leer cómodamente hacia abajo con el control remoto (D-pad).
+ */
+@Composable
+private fun FullOverviewDialog(
+    meta: MetaPreview,
+    detail: MetaDetail?,
+    enriched: EnrichedInfo?,
+    onClose: () -> Unit
+) {
+    val closeFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        repeat(4) {
+            if (runCatching { closeFocus.requestFocus() }.isSuccess) return@LaunchedEffect
+            delay(50)
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xE60B0F19))
+            .padding(horizontal = 48.dp, vertical = 24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color(0xF0101726))
+                .border(1.5.dp, PastelTheme.SurfaceBorder, RoundedCornerShape(20.dp))
+                .padding(24.dp)
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = meta.name,
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = PastelTheme.LavenderLight
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = metaLine(meta, detail),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = PastelTheme.Sky
+                            )
+                        }
+                        Pill(
+                            text = "✕ Cerrar",
+                            modifier = Modifier.focusRequester(closeFocus),
+                            onClick = onClose
+                        )
+                    }
+                }
+
+                // Sinopsis en español (Wikipedia) o Cinemeta
+                val spanishOverview = enriched?.overview?.takeIf { it.isNotBlank() }
+                val mainDescription = (meta.description ?: detail?.description)?.takeIf { it.isNotBlank() }
+
+                if (spanishOverview != null) {
+                    item {
+                        Text(
+                            text = "Sinopsis completa (Wikipedia):",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = PastelTheme.Mint
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = spanishOverview,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = PastelTheme.TextPrimary
+                        )
+                    }
+                }
+
+                if (mainDescription != null && mainDescription != spanishOverview) {
+                    item {
+                        Text(
+                            text = if (spanishOverview != null) "Sinopsis original (Cinemeta):" else "Sinopsis completa:",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = PastelTheme.Sky
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = mainDescription,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = PastelTheme.TextSecondary
+                        )
+                    }
+                }
+
+                // Premios y galardones
+                detail?.awards?.takeIf { it.isNotBlank() }?.let { awards ->
+                    item {
+                        Text(
+                            text = "🏆 Premios y reconocimientos:",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = PastelTheme.YellowPastel
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = awards,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = PastelTheme.TextPrimary
+                        )
+                    }
+                }
+
+                // Dirección y biografía
+                enriched?.let { info ->
+                    val crew = (info.crew.takeIf { it.isNotEmpty() } ?: detail?.directors).orEmpty()
+                    if (crew.isNotEmpty() || info.biography != null) {
+                        item {
+                            Text(
+                                text = "${info.crewLabel}: ${crew.joinToString(", ")}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = PastelTheme.LavenderLight
+                            )
+                            info.biography?.let { bio ->
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = bio,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = PastelTheme.TextSecondary
+                                )
+                            }
+                        }
+                    }
+
+                    // Reparto
+                    val cast = (info.cast.takeIf { it.isNotEmpty() } ?: detail?.cast).orEmpty()
+                    if (cast.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = "Reparto:",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = PastelTheme.SkyLight
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = cast.joinToString(" · "),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = PastelTheme.TextSecondary
+                            )
+                        }
+                    }
+
+                    // Ficha técnica (Productora, país, idiomas)
+                    val creditLine = info.creditLine()
+                    if (creditLine.isNotBlank()) {
+                        item {
+                            Text(
+                                text = "Ficha técnica: $creditLine",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = PastelTheme.TextMuted
+                            )
+                        }
+                    }
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Pill(text = "← Volver al detalle", onClick = onClose)
+                }
             }
         }
     }

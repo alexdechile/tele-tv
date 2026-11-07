@@ -1,6 +1,20 @@
 # Tele TV - Bitácora de Proyecto
 
 ## Último Realizado
+- **Identificación de subtítulos pegados (Hardcoded/KORSUB), personalización estética en reproductor y lectura completa en detalle:**
+  - **Indicador amarillo pastel para fuentes con subtítulos pegados:**
+    - Se agregó detección automática por expresiones regulares (`\b(HC|HARDCODED|HARD-CODED|KORSUB|KOR-SUB|KORSUBS|SUBBED|ENSUBBED|BURNT|BURNED)\b`) sobre las fuentes devueltas por Torrentio y demás addons.
+    - Cuando una fuente tiene subtítulos pegados, su tarjeta/botón de descarga se destaca en **amarillo pastel** (`#FEF08A` con borde acentuado) y muestra una insignia explícita `[⚠️ Subs pegados]` para distinguirla con claridad antes de iniciar la reproducción.
+  - **Personalización de subtítulos en el reproductor (fondo y tamaño de letra):**
+    - Se incorporó soporte de estilo en tiempo real sobre `SubtitleView` vía `CaptionStyleCompat`:
+      - **Fondo:** Opción de *Fondo negro sólido* (cubre los subtítulos pegados o quemados en el video impidiendo que se superpongan), *Fondo translúcido*, o *Sin fondo* (solo contorno).
+      - **Tamaño:** *Normal* (0.0533f), *Grande* (0.068f) o *Muy grande* (0.082f).
+    - Las preferencias se configuran directamente en la nueva columna de *Estilo de Subtítulos* dentro del diálogo `[💬 Audio / Pistas]` y se guardan en `SharedPreferences` para persistir entre sesiones.
+  - **Ampliación del contenedor de detalle y lectura hacia abajo ("Ver más…" estilo Filmin):**
+    - Se eliminó la limitación fija de 2 líneas de la sinopsis y los topes artificiales de la ficha cultural.
+    - Se añadió un botón desplegable de sinopsis (`[▼ Ver más…]` / `[▲ Menos]`) y un botón principal `[📖 Ficha y reseña completa]`.
+    - Al pulsar `[📖 Ficha y reseña completa]`, se abre un diálogo de lectura a pantalla completa con navegación vertical fluida mediante el control remoto (D-pad), que permite leer la sinopsis completa (Wikipedia en español y Cinemeta original), los premios y reconocimientos, las notas y biografía de directores, el reparto completo y la ficha técnica sin que nada quede cortado.
+    - Se asignó `Modifier.weight(1f)` a la columna derecha del detalle para aprovechar todo el ancho de pantalla disponible en 1080p.
 - **Soporte de subtítulos en línea multilingües (OpenSubtitles v3: Español, Inglés y Francés):**
   - **Búsqueda automática por IMDb ID:** Se integró el addon oficial de subtítulos de Stremio (`https://opensubtitles-v3.strem.io`) en `AddonRepository` y `StremioAddonClient`. Consulta en segundo plano al reproducir cualquier película o serie (`tt...`).
   - **Filtro y normalización de idiomas solicitados:**

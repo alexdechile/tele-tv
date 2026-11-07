@@ -28,6 +28,11 @@ object PastelTheme {
     val Coral = Color(0xFFFECDD3)           // Alerta suave no punitiva (Eliminar)
     val CoralDark = Color(0xFF881337)
 
+    val YellowPastel = Color(0xFFFEF08A)        // Amarillo pastel para fuentes con subtítulos pegados (hardcoded)
+    val YellowPastelLight = Color(0xFFFEF9C3)   // Fondo o acento suave
+    val YellowPastelDark = Color(0xFF713F12)    // Texto sobre amarillo pastel
+    val YellowPastelBorder = Color(0xFFFACC15)  // Borde para destacar subtítulos pegados
+
     val TextPrimary = Color(0xFFF8FAFC)
     val TextSecondary = Color(0xFFCBD5E1)
     val TextMuted = Color(0xFF94A3B8)

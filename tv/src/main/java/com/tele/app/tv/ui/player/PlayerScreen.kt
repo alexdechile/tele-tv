@@ -78,7 +78,9 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.audio.AudioCapabilities
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
+import androidx.media3.ui.SubtitleView
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.tele.app.core.torrent.TorrentEngine
@@ -94,6 +96,8 @@ import com.tele.app.tv.ui.theme.PastelTheme
 import kotlinx.coroutines.delay
 import java.io.File
 import java.util.Locale
+import android.content.Context
+import androidx.compose.ui.unit.Dp
 
 private const val AUDIO_LOG_TAG = "TeleTvAudio"
 /** Borrado del material bajado (se ve el video y se va de la TV). */
@@ -131,6 +135,18 @@ data class SubtitleOption(
     val label: String,
     val track: SubtitleTrackItem?
 )
+
+enum class SubtitleBackgroundPreference(val id: String, val label: String) {
+    SOLID("solid", "Fondo negro sólido (cubre subs)"),
+    TRANSLUCENT("translucent", "Fondo translúcido"),
+    NONE("none", "Sin fondo (solo contorno)")
+}
+
+enum class SubtitleSizePreference(val id: String, val label: String, val fraction: Float) {
+    NORMAL("normal", "Letra normal", 0.0533f),
+    LARGE("large", "Letra grande", 0.068f),
+    EXTRA_LARGE("xlarge", "Letra muy grande", 0.082f)
+}
 
 /** Una pista de audio del contenedor, tal como la reporta ExoPlayer. */
 data class AudioTrackItem(
@@ -304,6 +320,42 @@ fun PlayerScreen(
     var isPlaying by remember { mutableStateOf(false) }
     var isBuffering by remember { mutableStateOf(false) }
     var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
+
+    val prefs = remember(context) { context.getSharedPreferences("tele_subtitles_pref", Context.MODE_PRIVATE) }
+    var subBgPref by remember {
+        val saved = prefs.getString("sub_bg", SubtitleBackgroundPreference.SOLID.id)
+        mutableStateOf(SubtitleBackgroundPreference.entries.firstOrNull { it.id == saved } ?: SubtitleBackgroundPreference.SOLID)
+    }
+    var subSizePref by remember {
+        val saved = prefs.getString("sub_size", SubtitleSizePreference.NORMAL.id)
+        mutableStateOf(SubtitleSizePreference.entries.firstOrNull { it.id == saved } ?: SubtitleSizePreference.NORMAL)
+    }
+
+    // Configuración estética de subtítulos en ExoPlayer (fondo sólido para tapar hardcoded y tamaño de fuente)
+    LaunchedEffect(playerViewRef, subBgPref, subSizePref) {
+        val view = playerViewRef?.subtitleView ?: return@LaunchedEffect
+        view.setApplyEmbeddedStyles(false)
+        val bgColor = when (subBgPref) {
+            SubtitleBackgroundPreference.SOLID -> android.graphics.Color.BLACK
+            SubtitleBackgroundPreference.TRANSLUCENT -> android.graphics.Color.argb(200, 0, 0, 0)
+            SubtitleBackgroundPreference.NONE -> android.graphics.Color.TRANSPARENT
+        }
+        val edgeType = if (subBgPref == SubtitleBackgroundPreference.NONE) {
+            CaptionStyleCompat.EDGE_TYPE_OUTLINE
+        } else {
+            CaptionStyleCompat.EDGE_TYPE_NONE
+        }
+        val style = CaptionStyleCompat(
+            android.graphics.Color.WHITE,
+            bgColor,
+            android.graphics.Color.TRANSPARENT,
+            edgeType,
+            android.graphics.Color.BLACK,
+            null
+        )
+        view.setStyle(style)
+        view.setFractionalTextSize(subSizePref.fraction)
+    }
 
     // Estado del seek. ExoPlayer no expone la posición como estado de Compose,
     // así que la refrescamos con un reloj propio.
@@ -728,6 +780,8 @@ fun PlayerScreen(
                 subtitleOptions = availableSubtitles,
                 selectedSubtitleId = selectedSubtitle.id,
                 focusAudio = menuStartsWithAudio,
+                subBgPref = subBgPref,
+                subSizePref = subSizePref,
                 onSelectAudio = { item ->
                     notifyInteraction()
                     selectedAudioId = item.id
@@ -741,6 +795,16 @@ fun PlayerScreen(
                     applySubtitleSelection(player, option)
                     trackMenuOpen = false
                 },
+                onSelectSubBg = { pref ->
+                    notifyInteraction()
+                    subBgPref = pref
+                    prefs.edit().putString("sub_bg", pref.id).apply()
+                },
+                onSelectSubSize = { pref ->
+                    notifyInteraction()
+                    subSizePref = pref
+                    prefs.edit().putString("sub_size", pref.id).apply()
+                },
                 onClose = { trackMenuOpen = false }
             )
         }
@@ -748,7 +812,7 @@ fun PlayerScreen(
 }
 
 /**
- * Menú de pistas: audio a la izquierda, subtítulos a la derecha.
+ * Menú de pistas: audio a la izquierda, subtítulos al centro, estilo/fondo a la derecha.
  *
  * Cada opción es una tarjeta enfocable; la elegida se marca con un punto, para
  * que se vea de un vistazo qué está sonando y qué subtítulo está activo sin
@@ -761,8 +825,12 @@ private fun TrackMenu(
     subtitleOptions: List<SubtitleOption>,
     selectedSubtitleId: String,
     focusAudio: Boolean,
+    subBgPref: SubtitleBackgroundPreference,
+    subSizePref: SubtitleSizePreference,
     onSelectAudio: (AudioTrackItem) -> Unit,
     onSelectSubtitle: (SubtitleOption) -> Unit,
+    onSelectSubBg: (SubtitleBackgroundPreference) -> Unit,
+    onSelectSubSize: (SubtitleSizePreference) -> Unit,
     onClose: () -> Unit
 ) {
     val firstAudioFocus = remember { FocusRequester() }
@@ -789,10 +857,11 @@ private fun TrackMenu(
             .border(1.dp, PastelTheme.SurfaceBorder, RoundedCornerShape(18.dp))
             .padding(horizontal = 20.dp, vertical = 18.dp)
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             TrackColumn(
                 title = "Audio",
                 emptyText = "Sin pistas de audio",
+                width = 230.dp,
                 options = audioOptions.map { item ->
                     TrackEntry(
                         id = item.id,
@@ -807,6 +876,7 @@ private fun TrackMenu(
             TrackColumn(
                 title = "Subtítulos",
                 emptyText = "Sin subtítulos",
+                width = 250.dp,
                 options = subtitleOptions.map { option ->
                     TrackEntry(
                         id = option.id,
@@ -817,6 +887,80 @@ private fun TrackMenu(
                 firstFocus = firstSubtitleFocus,
                 onSelect = { id -> subtitleOptions.firstOrNull { it.id == id }?.let(onSelectSubtitle) }
             )
+
+            // Columna de personalización de subtítulos: Fondo y Tamaño
+            Column(
+                modifier = Modifier.width(260.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Fondo de subtítulos",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = PastelTheme.Sky
+                )
+                SubtitleBackgroundPreference.entries.forEach { pref ->
+                    TeleCard(
+                        onClick = { onSelectSubBg(pref) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (pref == subBgPref) "● " else "  ",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = PillFocus
+                            )
+                            Text(
+                                text = pref.label,
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "Tamaño de letra",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = PastelTheme.Sky
+                )
+                SubtitleSizePreference.entries.forEach { pref ->
+                    TeleCard(
+                        onClick = { onSelectSubSize(pref) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (pref == subSizePref) "● " else "  ",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = PillFocus
+                            )
+                            Text(
+                                text = pref.label,
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -827,12 +971,13 @@ private data class TrackEntry(val id: String, val label: String, val selected: B
 private fun TrackColumn(
     title: String,
     emptyText: String,
+    width: Dp = 250.dp,
     options: List<TrackEntry>,
     firstFocus: FocusRequester,
     onSelect: (String) -> Unit
 ) {
     Column(
-        modifier = Modifier.width(320.dp),
+        modifier = Modifier.width(width),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(

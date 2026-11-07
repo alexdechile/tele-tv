@@ -9,6 +9,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.tv.material3.Card
+import androidx.tv.material3.CardBorder
+import androidx.tv.material3.CardColors
+import androidx.tv.material3.CardDefaults
 
 /**
  * `Card` de tv-material con el clic **también por puntero**.
@@ -41,12 +44,16 @@ import androidx.tv.material3.Card
 fun TeleCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    colors: CardColors = CardDefaults.colors(),
+    border: CardBorder = CardDefaults.border(),
     content: @Composable ColumnScope.() -> Unit
 ) {
     val focus = remember { FocusRequester() }
 
     Card(
         onClick = onClick,
+        colors = colors,
+        border = border,
         modifier = modifier
             .focusRequester(focus)
             .teleTap {
