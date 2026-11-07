@@ -238,7 +238,32 @@ fun DetailScreen(
                         }
                     }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                    // Exploración rápida por director y reparto
+                    val directPeople = remember(enriched, detail) {
+                        val crew = (enriched?.crew.takeIf { !it.isNullOrEmpty() } ?: detail?.directors).orEmpty()
+                            .take(2).map { it to "🎬" }
+                        val cast = (enriched?.cast.takeIf { !it.isNullOrEmpty() } ?: detail?.cast).orEmpty()
+                            .take(8).map { it to "👤" }
+                        crew + cast
+                    }
+                    if (directPeople.isNotEmpty() && onPersonSelected != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(directPeople.size) { index ->
+                                val (person, role) = directPeople[index]
+                                PersonChip(
+                                    name = person,
+                                    role = role,
+                                    onClick = { onPersonSelected(person) }
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
 
                 if (showSeasons) {
                     // Serie sin episodio elegido: primero la ficha cultural
@@ -302,6 +327,8 @@ fun DetailScreen(
                 meta = meta,
                 detail = detail,
                 enriched = enriched,
+                onPersonSelected = onPersonSelected,
+                onPlatformClick = { platform -> launchStreamingPlatform(context, platform) },
                 onClose = { showFullOverviewDialog = false }
             )
         }
@@ -968,6 +995,8 @@ private fun FullOverviewDialog(
     meta: MetaPreview,
     detail: MetaDetail?,
     enriched: EnrichedInfo?,
+    onPersonSelected: ((String) -> Unit)? = null,
+    onPlatformClick: ((String) -> Unit)? = null,
     onClose: () -> Unit
 ) {
     val closeFocus = remember { FocusRequester() }
@@ -1082,38 +1111,80 @@ private fun FullOverviewDialog(
                 }
 
                 // Dirección y biografía
-                enriched?.let { info ->
-                    val crew = (info.crew.takeIf { it.isNotEmpty() } ?: detail?.directors).orEmpty()
-                    if (crew.isNotEmpty() || info.biography != null) {
-                        item {
-                            Text(
-                                text = "${info.crewLabel}: ${crew.joinToString(", ")}",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = PastelTheme.LavenderLight
-                            )
-                            info.biography?.let { bio ->
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = bio,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = Color(0xFFF1F5F9)
-                                )
+                val crew = (enriched?.crew.takeIf { !it.isNullOrEmpty() } ?: detail?.directors).orEmpty()
+                if (crew.isNotEmpty() || enriched?.biography != null) {
+                    item {
+                        Text(
+                            text = "${enriched?.crewLabel ?: "Dirección"}:",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = PastelTheme.LavenderLight
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        if (onPersonSelected != null && crew.isNotEmpty()) {
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                items(crew.size) { index ->
+                                    val person = crew[index]
+                                    PersonChip(
+                                        name = person,
+                                        role = "🎬",
+                                        onClick = {
+                                            onClose()
+                                            onPersonSelected(person)
+                                        }
+                                    )
+                                }
                             }
+                        } else if (crew.isNotEmpty()) {
+                            Text(
+                                text = crew.joinToString(", "),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.White
+                            )
+                        }
+                        enriched?.biography?.let { bio ->
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = bio,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color(0xFFF1F5F9)
+                            )
                         }
                     }
+                }
 
-                    // Reparto
-                    val cast = (info.cast.takeIf { it.isNotEmpty() } ?: detail?.cast).orEmpty()
-                    if (cast.isNotEmpty()) {
-                        item {
-                            Text(
-                                text = "Reparto:",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = PastelTheme.SkyLight
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
+                // Reparto (Elenco interactivo)
+                val cast = (enriched?.cast.takeIf { !it.isNullOrEmpty() } ?: detail?.cast).orEmpty()
+                if (cast.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = if (onPersonSelected != null) "Reparto (selecciona para ver su filmografía):" else "Reparto:",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = PastelTheme.SkyLight
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        if (onPersonSelected != null) {
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                items(cast.size) { index ->
+                                    val person = cast[index]
+                                    PersonChip(
+                                        name = person,
+                                        role = "👤",
+                                        onClick = {
+                                            onClose()
+                                            onPersonSelected(person)
+                                        }
+                                    )
+                                }
+                            }
+                        } else {
                             Text(
                                 text = cast.joinToString(" · "),
                                 style = MaterialTheme.typography.bodyMedium,
@@ -1121,17 +1192,44 @@ private fun FullOverviewDialog(
                             )
                         }
                     }
+                }
 
-                    // Ficha técnica (Productora, país, idiomas)
-                    val creditLine = info.creditLine()
-                    if (creditLine.isNotBlank()) {
-                        item {
-                            Text(
-                                text = "Ficha técnica: $creditLine",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = PastelTheme.SkyLight
-                            )
+                // Plataformas oficiales (Filmin, MUBI, Netflix...)
+                enriched?.platforms?.takeIf { it.isNotEmpty() }?.let { platforms ->
+                    item {
+                        Text(
+                            text = "Disponible en streaming oficial:",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = PastelTheme.MintLight
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(platforms.size) { index ->
+                                val platform = platforms[index]
+                                PlatformChip(
+                                    name = platform,
+                                    onClick = {
+                                        onClose()
+                                        onPlatformClick?.invoke(platform)
+                                    }
+                                )
+                            }
                         }
+                    }
+                }
+
+                // Ficha técnica (Productora, país, idiomas)
+                enriched?.creditLine()?.takeIf { it.isNotBlank() }?.let { creditLine ->
+                    item {
+                        Text(
+                            text = "Ficha técnica: $creditLine",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = PastelTheme.SkyLight
+                        )
                     }
                 }
 

@@ -1,6 +1,14 @@
 # Tele TV - Bitácora de Proyecto
 
 ## Último Realizado
+- **Exploración interactiva por director y actores (en Detalle y en Ficha-Modal):**
+  - **Fichas interactivas (`PersonChip`) en la Ficha Completa modal:**
+    - Se reemplazó el texto estático de directores y reparto por tarjetas interactivas navegables con D-pad (`🎬 Director`, `👤 Actor`) dentro del diálogo modal `[📖 Ficha y reseña completa]`.
+    - Al pulsar sobre cualquier persona, se cierra el diálogo y se abre inmediatamente el buscador (`SearchScreen`) cargando su filmografía completa para descubrir todas sus películas y series.
+    - Soporte híbrido: utiliza datos de Wikipedia/Wikidata o Cinemeta, garantizando que siempre se pueda explorar el elenco.
+    - Se integraron también las fichas interactivas de plataformas oficiales de streaming (`PlatformChip` para Filmin, MUBI, Netflix, etc.) dentro del modal.
+  - **Acceso directo en la pantalla de detalle:**
+    - Se incorporó una fila de exploración rápida inmediatamente bajo los botones de sinopsis en la vista principal de detalle, permitiendo explorar al director y principales actores con un solo toque de D-pad sin necesidad obligatoria de abrir el modal.
 - **Explorador de descargas guardadas, foco de alto contraste y tipografía nítida en ficha completa:**
   - **Explorador de descargas (`DownloadsScreen`):**
     - Se agregó un explorador nativo para TV accesible desde el botón `[📁 Descargas]` en la barra superior del Home.
