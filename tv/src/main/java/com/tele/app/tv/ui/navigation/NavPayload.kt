@@ -8,7 +8,8 @@ data class PlaybackRequest(
     val fileIndex: Int?,
     val title: String?,
     val mediaType: String? = null,
-    val mediaId: String? = null
+    val mediaId: String? = null,
+    val localFilePath: String? = null
 )
 
 /**

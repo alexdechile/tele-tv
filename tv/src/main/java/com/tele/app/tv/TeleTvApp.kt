@@ -22,7 +22,7 @@ class TeleTvApp : Application() {
         Thread({
             val root = File(cacheDir, "torrents")
             if (root.exists()) {
-                TorrentPaths.purge(root)
+                TorrentPaths.purge(root, preserveKeepMarkers = true)
             }
         }, "torrent-cache-purge").apply { isDaemon = true }.start()
     }

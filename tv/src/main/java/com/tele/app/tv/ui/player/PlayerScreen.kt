@@ -529,9 +529,24 @@ fun PlayerScreen(
     // La URL vive aparte del estado de progreso: si se leyera de `state`, el
     // primer `Progress` la pisaría y ExoPlayer nunca llegaría a preparar el video.
     val readyInfo by viewModel.ready.collectAsState()
+    val isLocalPlayback = !request?.localFilePath.isNullOrBlank()
+
+    LaunchedEffect(request?.localFilePath) {
+        val path = request?.localFilePath ?: return@LaunchedEffect
+        val file = File(path)
+        if (!file.exists()) {
+            playerError = "El archivo local no existe: ${file.name}"
+            return@LaunchedEffect
+        }
+        playerError = null
+        player.setMediaItem(MediaItem.fromUri(Uri.fromFile(file)))
+        player.prepare()
+        player.play()
+    }
 
     LaunchedEffect(request?.magnetUri, request?.fileIndex) {
         val playback = request ?: return@LaunchedEffect
+        if (playback.localFilePath != null) return@LaunchedEffect
         viewModel.start(
             playback.magnetUri,
             playback.fileIndex,
@@ -649,6 +664,7 @@ fun PlayerScreen(
     }
 
     val statusLine = playerError ?: when {
+        isLocalPlayback -> (if (isPlaying) "Reproduciendo descarga local" else "En pausa") + " · ${request?.title ?: "video"}"
         readyInfo == null -> statusText(state, null)
         isBuffering -> "Cargando el video…" + progressSuffix(state)
         isPlaying -> "Reproduciendo ${readyInfo?.fileName ?: "video"}" + progressSuffix(state)
@@ -760,7 +776,21 @@ fun PlayerScreen(
             DeleteConfirmDialog(
                 onConfirm = {
                     showDeleteDialog = false
-                    viewModel.deleteDownloadNow { onBack() }
+                    if (isLocalPlayback) {
+                        request?.localFilePath?.let { path ->
+                            runCatching {
+                                val file = File(path)
+                                val parent = file.parentFile
+                                file.delete()
+                                if (parent != null && parent.name.startsWith("session-")) {
+                                    parent.deleteRecursively()
+                                }
+                            }
+                        }
+                        onBack()
+                    } else {
+                        viewModel.deleteDownloadNow { onBack() }
+                    }
                 },
                 onDismiss = { showDeleteDialog = false }
             )

@@ -1,5 +1,6 @@
 package com.tele.app.tv.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.runtime.Composable
@@ -7,45 +8,37 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.dp
+import androidx.tv.material3.Border
 import androidx.tv.material3.Card
 import androidx.tv.material3.CardBorder
 import androidx.tv.material3.CardColors
 import androidx.tv.material3.CardDefaults
+import androidx.tv.material3.CardScale
 
 /**
- * `Card` de tv-material con el clic **también por puntero**.
+ * `Card` de tv-material con el clic **también por puntero** y foco de alto contraste para TV.
  *
- * ## Por qué existe
- *
- * `androidx.tv:tv-material:1.0.0` implementa el clic de `Surface`/`Card` con
- * `Modifier.focusable` + `Modifier.onKeyEvent` (`handleDPadEnter`), y **no** con
- * `clickable`: no hay `pointerInput` en toda la cadena. Consecuencia medida en el
- * bytecode del AAR y confirmada en una tablet Lenovo YT-X705F: un dedo (o el mouse)
- * sobre una tarjeta no dispara nada, porque el toque no produce ni foco ni tecla.
- * En la TV funciona porque el D-pad mueve el foco y `ENTER`/`DPAD_CENTER` llega al
- * `onKeyEvent`.
- *
- * ## Qué hace
- *
- * Suma un `detectTapGestures` que **no** crea un segundo nodo enfocable (eso es lo
- * que haría un `Modifier.clickable`, y rompería el orden del foco en la TV). Al
- * tocar, pide el foco para la tarjeta (de ahí sale el borde/glow ámbar que la TV
- * ya usa como señal de "estoy acá") y recién después ejecuta el `onClick`.
- *
- * - TV con D-pad: no cambia nada, el `onKeyEvent` interno sigue siendo el que
- *   dispara el clic.
- * - Tablet / mouse: el toque dispara el clic.
- * - El arrastre para scrollear sigue funcionando: un movimiento pasa el umbral
- *   táctil, el gesto de tap se cancela y el `LazyRow`/`LazyColumn` se queda con
- *   el gesto (igual que un botón de Material).
+ * En salas de estar a 3-4 metros, un botón con foco tiene que ser inconfundible:
+ * resalta con borde blanco de 2.5dp, fondo lavanda pastel brillante, texto oscuro y leve escala.
  */
 @Composable
 fun TeleCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    colors: CardColors = CardDefaults.colors(),
-    border: CardBorder = CardDefaults.border(),
+    colors: CardColors = CardDefaults.colors(
+        containerColor = Color(0xF0182238),
+        focusedContainerColor = Color(0xFFC7B9FF),
+        contentColor = Color.White,
+        focusedContentColor = Color(0xFF241B44)
+    ),
+    border: CardBorder = CardDefaults.border(
+        border = Border(BorderStroke(1.dp, Color(0x33C7B9FF))),
+        focusedBorder = Border(BorderStroke(2.5.dp, Color.White))
+    ),
+    scale: CardScale = CardDefaults.scale(focusedScale = 1.04f),
     content: @Composable ColumnScope.() -> Unit
 ) {
     val focus = remember { FocusRequester() }
@@ -54,6 +47,7 @@ fun TeleCard(
         onClick = onClick,
         colors = colors,
         border = border,
+        scale = scale,
         modifier = modifier
             .focusRequester(focus)
             .teleTap {

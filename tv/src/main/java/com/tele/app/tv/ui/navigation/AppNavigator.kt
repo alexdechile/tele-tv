@@ -11,6 +11,7 @@ import androidx.navigation.compose.rememberNavController
 import com.tele.app.data.addon.TorrentLinks
 import com.tele.app.data.addon.model.StreamSource
 import com.tele.app.tv.ui.detail.DetailScreen
+import com.tele.app.tv.ui.downloads.DownloadsScreen
 import com.tele.app.tv.ui.main.MainScreen
 import com.tele.app.tv.ui.main.MainViewModel
 import com.tele.app.tv.ui.player.PlayerScreen
@@ -36,6 +37,7 @@ fun AppNavigator() {
                     navController.navigate(ROUTE_DETAIL)
                 },
                 onOpenSearch = { navController.navigate(ROUTE_SEARCH) },
+                onOpenDownloads = { navController.navigate(ROUTE_DOWNLOADS) },
                 onRetry = { viewModel.refresh() }
             )
         }
@@ -91,6 +93,21 @@ fun AppNavigator() {
                 onBack = { navController.popBackStack() }
             )
         }
+
+        composable(ROUTE_DOWNLOADS) {
+            DownloadsScreen(
+                onPlay = { item ->
+                    NavPayload.playback = PlaybackRequest(
+                        magnetUri = "",
+                        fileIndex = null,
+                        title = item.cleanTitle,
+                        localFilePath = item.file.absolutePath
+                    )
+                    navController.navigate(ROUTE_PLAYER)
+                },
+                onBack = { navController.popBackStack() }
+            )
+        }
     }
 }
 
@@ -123,3 +140,4 @@ private const val ROUTE_MAIN = "main"
 private const val ROUTE_SEARCH = "search"
 private const val ROUTE_DETAIL = "detail"
 private const val ROUTE_PLAYER = "player"
+private const val ROUTE_DOWNLOADS = "downloads"

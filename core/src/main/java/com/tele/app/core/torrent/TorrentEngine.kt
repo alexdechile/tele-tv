@@ -326,6 +326,17 @@ class TorrentEngine(
      */
     fun setKeepDownloaded(keep: Boolean) {
         keepOnStop = keep
+        synchronized(lock) {
+            val dir = activeDir
+            if (dir != null && dir.exists()) {
+                val marker = File(dir, ".keep")
+                if (keep) {
+                    runCatching { marker.createNewFile() }
+                } else {
+                    runCatching { marker.delete() }
+                }
+            }
+        }
         onDiagnostic?.invoke(
             if (keep) "descarga marcada para conservar en disco"
             else "descarga marcada para eliminar al salir"
@@ -394,6 +405,11 @@ class TorrentEngine(
             if (keepOnStop) {
                 dirToDelete = null
                 preservedDir = activeDir
+                activeDir?.let { dir ->
+                    if (dir.exists()) {
+                        runCatching { File(dir, ".keep").createNewFile() }
+                    }
+                }
             } else {
                 dirToDelete = activeDir
                 preservedDir = null

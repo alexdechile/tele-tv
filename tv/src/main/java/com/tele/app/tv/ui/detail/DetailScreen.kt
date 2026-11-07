@@ -216,7 +216,7 @@ fun DetailScreen(
                         Text(
                             text = description,
                             style = MaterialTheme.typography.bodySmall,
-                            color = PastelTheme.TextSecondary,
+                            color = Color(0xFFF1F5F9),
                             maxLines = if (synopsisExpanded) 8 else 2,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -333,7 +333,7 @@ private fun WikipediaCard(
             Text(
                 text = line,
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = PastelTheme.SkyLight,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -344,7 +344,8 @@ private fun WikipediaCard(
             Text(
                 text = "Disponible en streaming oficial:",
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                fontWeight = FontWeight.SemiBold,
+                color = PastelTheme.MintLight
             )
             Spacer(modifier = Modifier.height(2.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -369,7 +370,8 @@ private fun WikipediaCard(
                 Text(
                     text = awards,
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    color = PastelTheme.YellowPastel,
                     maxLines = if (expanded) Int.MAX_VALUE else 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -383,7 +385,8 @@ private fun WikipediaCard(
                 Text(
                     text = "${info.crewLabel}:",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    fontWeight = FontWeight.SemiBold,
+                    color = PastelTheme.LavenderLight
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -401,7 +404,7 @@ private fun WikipediaCard(
                 Text(
                     text = "${info.crewLabel}: ${crewMembers.joinToString(", ")}",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = Color.White,
                     maxLines = if (expanded) Int.MAX_VALUE else 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -412,7 +415,7 @@ private fun WikipediaCard(
             Text(
                 text = biography,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Color(0xFFF1F5F9),
                 maxLines = if (expanded) Int.MAX_VALUE else biographyLines,
                 overflow = TextOverflow.Ellipsis
             )
@@ -425,7 +428,8 @@ private fun WikipediaCard(
                 Text(
                     text = "Reparto principal:",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    fontWeight = FontWeight.SemiBold,
+                    color = PastelTheme.SkyLight
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -443,7 +447,7 @@ private fun WikipediaCard(
                 Text(
                     text = "Reparto: ${castMembers.take(if (expanded) 20 else 5).joinToString(", ")}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = Color.White,
                     maxLines = if (expanded) Int.MAX_VALUE else castLines,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -456,7 +460,7 @@ private fun WikipediaCard(
             Text(
                 text = "Sinopsis (Wikipedia): $overview",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Color.White,
                 maxLines = if (expanded) Int.MAX_VALUE else overviewLines,
                 overflow = TextOverflow.Ellipsis
             )
@@ -465,7 +469,7 @@ private fun WikipediaCard(
         Text(
             text = "Fuente: ${info.license}",
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = PastelTheme.SkyLight,
             maxLines = 1
         )
     }
@@ -493,7 +497,7 @@ private fun PersonChip(
             Text(
                 text = name,
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1
             )
         }
@@ -534,7 +538,7 @@ private fun PlatformChip(
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1
             )
         }
@@ -648,7 +652,8 @@ private fun SeasonBrowser(
         Text(
             text = "${current.label} · ${current.episodes.size} episodios",
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            fontWeight = FontWeight.SemiBold,
+            color = PastelTheme.SkyLight
         )
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -683,13 +688,12 @@ private fun EpisodeRow(episode: Episode, onClick: () -> Unit) {
             Text(
                 text = episode.code,
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Bold,
                 modifier = Modifier.width(64.dp)
             )
             Text(
                 text = episode.name ?: "Episodio ${episode.episode}",
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
@@ -697,8 +701,7 @@ private fun EpisodeRow(episode: Episode, onClick: () -> Unit) {
             episode.released?.take(10)?.let { date ->
                 Text(
                     text = date,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = MaterialTheme.typography.labelSmall
                 )
             }
         }
@@ -719,7 +722,12 @@ private fun Pill(
                 .padding(horizontal = 16.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text(text = text, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1
+            )
         }
     }
 }
@@ -1033,7 +1041,7 @@ private fun FullOverviewDialog(
                         Text(
                             text = spanishOverview,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = PastelTheme.TextPrimary
+                            color = Color.White
                         )
                     }
                 }
@@ -1044,13 +1052,13 @@ private fun FullOverviewDialog(
                             text = if (spanishOverview != null) "Sinopsis original (Cinemeta):" else "Sinopsis completa:",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = PastelTheme.Sky
+                            color = PastelTheme.SkyLight
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = mainDescription,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = PastelTheme.TextSecondary
+                            color = Color(0xFFF1F5F9)
                         )
                     }
                 }
@@ -1068,7 +1076,7 @@ private fun FullOverviewDialog(
                         Text(
                             text = awards,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = PastelTheme.TextPrimary
+                            color = Color.White
                         )
                     }
                 }
@@ -1089,7 +1097,7 @@ private fun FullOverviewDialog(
                                 Text(
                                     text = bio,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = PastelTheme.TextSecondary
+                                    color = Color(0xFFF1F5F9)
                                 )
                             }
                         }
@@ -1109,7 +1117,7 @@ private fun FullOverviewDialog(
                             Text(
                                 text = cast.joinToString(" · "),
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = PastelTheme.TextSecondary
+                                color = Color.White
                             )
                         }
                     }
@@ -1121,7 +1129,7 @@ private fun FullOverviewDialog(
                             Text(
                                 text = "Ficha técnica: $creditLine",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = PastelTheme.TextMuted
+                                color = PastelTheme.SkyLight
                             )
                         }
                     }

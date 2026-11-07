@@ -50,11 +50,16 @@ object TorrentPaths {
     /**
      * Borra el contenido de [root] (un nivel: subdirectorios completos y
      * archivos sueltos) y devuelve cuántos bytes se liberaron. No borra [root].
+     * Si [preserveKeepMarkers] es true, no borra los directorios que tengan
+     * el archivo marcador `.keep`.
      */
-    fun purge(root: File): Long {
+    fun purge(root: File, preserveKeepMarkers: Boolean = false): Long {
         val children = root.listFiles() ?: return 0L
         var freed = 0L
         for (child in children) {
+            if (preserveKeepMarkers && child.isDirectory && File(child, ".keep").exists()) {
+                continue
+            }
             freed += sizeOf(child)
             runCatching { child.deleteRecursively() }
         }

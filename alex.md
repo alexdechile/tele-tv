@@ -1,6 +1,18 @@
 # Tele TV - Bitácora de Proyecto
 
 ## Último Realizado
+- **Explorador de descargas guardadas, foco de alto contraste y tipografía nítida en ficha completa:**
+  - **Explorador de descargas (`DownloadsScreen`):**
+    - Se agregó un explorador nativo para TV accesible desde el botón `[📁 Descargas]` en la barra superior del Home.
+    - Escanea recursivamente las carpetas de almacenamiento (`filesDir/descargas` y `cacheDir/torrents`), listando títulos limpios, tamaños formateados en MB/GB y fechas de guardado.
+    - Cada elemento cuenta con botones navegables con D-pad para **Reproducir** directamente en ExoPlayer (sin red ni búfer, reproducción local instantánea) y **Borrar permanentemente** con diálogo modal de confirmación y liberación inmediata de espacio en disco.
+    - Soporte completo para reproducir archivos locales en `PlayerScreen` (`PlaybackRequest.localFilePath`) con la opción de eliminarlos también desde la botonera del reproductor.
+    - Se garantizó la preservación de descargas marcadas con `.keep` entre reinicios de la aplicación mediante `TorrentPaths.purge(..., preserveKeepMarkers = true)`.
+  - **Foco de alto contraste en toda la interfaz de TV:**
+    - Se rediseñó el estado de foco en `TeleCard`: al recibir foco mediante el control remoto, el botón o tarjeta resalta con fondo lavanda pastel brillante (`#C7B9FF`), texto en negrita morado oscuro de alto contraste (`#241B44`), borde blanco sólido de 2.5dp y una escala de 1.04x, resolviendo la invisibilidad del foco a 3-4 metros de distancia.
+    - Se limpiaron los fondos y colores duros en los botones del encabezado de la pantalla principal (`[📁 Descargas]`, `[Vista: Mosaico/Filas]`, `[🔍 Buscar]`), permitiendo que el estado de foco activo destaque con total claridad.
+  - **Tipografía nítida y contraste en Ficha Completa y Detalle:**
+    - Se sustituyó el gris apagado (`TextSecondary` / `onSurfaceVariant`) por blanco nítido (`Color.White` / `#F1F5F9`) y acentos pasteles luminosos (`PastelTheme.SkyLight`, `PastelTheme.Mint`, `PastelTheme.LavenderLight`) en la sinopsis completa, ficha cultural de Wikipedia, notas de directores, reparto y ficha técnica.
 - **Identificación de subtítulos pegados (Hardcoded/KORSUB), personalización estética en reproductor y lectura completa en detalle:**
   - **Indicador amarillo pastel para fuentes con subtítulos pegados:**
     - Se agregó detección automática por expresiones regulares (`\b(HC|HARDCODED|HARD-CODED|KORSUB|KOR-SUB|KORSUBS|SUBBED|ENSUBBED|BURNT|BURNED)\b`) sobre las fuentes devueltas por Torrentio y demás addons.

@@ -54,6 +54,7 @@ fun MainScreen(
     state: HomeState,
     onItemSelected: (MetaPreview) -> Unit,
     onOpenSearch: () -> Unit,
+    onOpenDownloads: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -71,7 +72,7 @@ fun MainScreen(
                 // dice "está trabajando", no "se colgó".
                 HomeState.Loading -> SkeletonCatalog()
                 is HomeState.Error -> ErrorPanel(state.message, onRetry)
-                is HomeState.Content -> CatalogContent(state.rows, onItemSelected, onOpenSearch)
+                is HomeState.Content -> CatalogContent(state.rows, onItemSelected, onOpenSearch, onOpenDownloads)
             }
         }
     }
@@ -114,13 +115,15 @@ private fun ErrorPanel(message: String, onRetry: () -> Unit) {
 private fun CatalogContent(
     rows: List<HomeRow>,
     onItemSelected: (MetaPreview) -> Unit,
-    onOpenSearch: () -> Unit
+    onOpenSearch: () -> Unit,
+    onOpenDownloads: () -> Unit
 ) {
     var gridMode by rememberSaveable { mutableStateOf(false) }
 
     val header: @Composable () -> Unit = {
         HeaderRow(
             onOpenSearch = onOpenSearch,
+            onOpenDownloads = onOpenDownloads,
             gridMode = gridMode,
             onToggleGrid = { gridMode = !gridMode }
         )
@@ -169,13 +172,14 @@ private fun CatalogContent(
 @Composable
 private fun HeaderRow(
     onOpenSearch: () -> Unit,
+    onOpenDownloads: () -> Unit,
     gridMode: Boolean,
     onToggleGrid: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(20.dp)
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
             text = "Tele TV",
@@ -190,35 +194,45 @@ private fun HeaderRow(
             color = PastelTheme.Sky,
             modifier = Modifier.weight(1f)
         )
-        TeleCard(onClick = onToggleGrid, modifier = Modifier.width(220.dp).height(50.dp)) {
+        TeleCard(onClick = onOpenDownloads, modifier = Modifier.width(170.dp).height(48.dp)) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0xF0182238))
                     .padding(horizontal = 14.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = if (gridMode) "Vista: Filas" else "Vista: Cuadrícula",
+                    text = "📁 Descargas",
                     style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = PastelTheme.LavenderLight
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
-        TeleCard(onClick = onOpenSearch, modifier = Modifier.width(230.dp).height(50.dp)) {
+        TeleCard(onClick = onToggleGrid, modifier = Modifier.width(180.dp).height(48.dp)) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0xF0182238))
                     .padding(horizontal = 14.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "🔍 Buscar en el catálogo",
+                    text = if (gridMode) "Vista: Filas" else "Vista: Mosaico",
                     style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = PastelTheme.LavenderLight
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+        TeleCard(onClick = onOpenSearch, modifier = Modifier.width(170.dp).height(48.dp)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 14.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "🔍 Buscar",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
