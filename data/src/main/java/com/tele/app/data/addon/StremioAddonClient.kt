@@ -10,6 +10,7 @@ import com.tele.app.data.addon.model.MetaDetail
 import com.tele.app.data.addon.model.MetaPreview
 import com.tele.app.data.addon.model.Season
 import com.tele.app.data.addon.model.StreamSource
+import com.tele.app.data.addon.model.SubtitleSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -83,6 +84,52 @@ class StremioAddonClient(
         val root = fetchJson(StremioUrls.stream(addonUrl, type, id))
         return root.arrayOrNull("streams").elements()
             .mapNotNull { it.asObjectOrNull()?.toStreamSource(addonName) }
+    }
+
+    /**
+     * Lista los subtítulos remotos disponibles para un ítem (película, serie o episodio).
+     *
+     * Filtra los idiomas solicitados (Español, Inglés y Francés) y normaliza sus
+     * códigos ISO ("es", "en", "fr") junto a etiquetas legibles para el reproductor.
+     */
+    suspend fun subtitles(addonUrl: String, type: String, id: String): List<SubtitleSource> {
+        val root = fetchJson(StremioUrls.subtitles(addonUrl, type, id))
+        val array = root.arrayOrNull("subtitles") ?: return emptyList()
+
+        val results = mutableListOf<SubtitleSource>()
+        val countPerLang = mutableMapOf<String, Int>()
+
+        for (element in array.elements()) {
+            val obj = element.asObjectOrNull() ?: continue
+            val rawLang = obj.stringOrNull("lang")?.lowercase()?.trim() ?: continue
+            val normLang = when {
+                rawLang in setOf("spa", "es", "es-419", "es-es", "es-la") -> "es"
+                rawLang in setOf("eng", "en", "en-us", "en-gb") -> "en"
+                rawLang in setOf("fre", "fra", "fr") -> "fr"
+                else -> null
+            } ?: continue
+
+            val currentCount = countPerLang.getOrDefault(normLang, 0)
+            val maxForThis = if (normLang == "es") 3 else 2
+            if (currentCount >= maxForThis) continue
+
+            val url = obj.stringOrNull("url") ?: continue
+            val subId = obj.stringOrNull("id") ?: url
+            val fileName = obj.stringOrNull("subtitleFileName") ?: ""
+
+            val langTitle = when (normLang) {
+                "es" -> if (fileName.contains("latino", ignoreCase = true) || rawLang == "es-419" || rawLang == "es-la") "Español (Latino · Online)" else "Español (Online)"
+                "en" -> "Inglés (Online)"
+                "fr" -> "Francés (Online)"
+                else -> normLang
+            }
+            val tag = if (fileName.contains("sdh", ignoreCase = true) || fileName.contains("cc", ignoreCase = true)) " [SDH]" else ""
+            val label = "$langTitle$tag"
+
+            results.add(SubtitleSource(id = subId, url = url, lang = normLang, label = label))
+            countPerLang[normLang] = currentCount + 1
+        }
+        return results
     }
 
     // ---------------------------------------------------------------------

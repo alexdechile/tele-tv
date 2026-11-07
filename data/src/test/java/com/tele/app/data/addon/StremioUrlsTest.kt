@@ -77,6 +77,15 @@ class StremioUrlsTest {
     }
 
     @Test
+    fun `la url de subtitulos arma la ruta para peliculas y series`() {
+        val movieUrl = StremioUrls.subtitles("https://opensubtitles-v3.strem.io/", "movie", "tt0111161")
+        assertEquals("https://opensubtitles-v3.strem.io/subtitles/movie/tt0111161.json", movieUrl)
+
+        val seriesUrl = StremioUrls.subtitles("https://opensubtitles-v3.strem.io", "series", "tt0903747:1:1")
+        assertEquals("https://opensubtitles-v3.strem.io/subtitles/series/tt0903747:1:1.json", seriesUrl)
+    }
+
+    @Test
     fun `el manifest se pide en la raiz`() {
         assertEquals(
             "https://v3-cinemeta.strem.io/manifest.json",

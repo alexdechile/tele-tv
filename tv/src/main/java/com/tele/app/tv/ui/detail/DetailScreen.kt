@@ -78,7 +78,7 @@ sealed interface StreamsState {
 @Composable
 fun DetailScreen(
     meta: MetaPreview,
-    onPlay: (StreamSource, String?) -> Unit,
+    onPlay: (StreamSource, String?, String?) -> Unit,
     modifier: Modifier = Modifier,
     onPersonSelected: ((String) -> Unit)? = null,
     addons: AddonRepository = AppGraph.addons,
@@ -253,7 +253,7 @@ fun DetailScreen(
                     StreamsList(
                         state = streamsState,
                         onPlay = { stream ->
-                            onPlay(stream, selectedEpisode?.let { "${it.code} · ${it.name}" })
+                            onPlay(stream, selectedEpisode?.let { "${it.code} · ${it.name}" }, streamsId)
                         },
                         header = enriched?.takeIf { it.hasContent },
                         detail = detail,

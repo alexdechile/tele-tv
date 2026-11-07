@@ -5,7 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.tele.app.core.torrent.TorrentEngine
 import com.tele.app.core.torrent.TorrentStreamInfo
 import com.tele.app.core.torrent.TorrentStreamState
+import com.tele.app.data.addon.AddonRepository
+import com.tele.app.data.addon.model.SubtitleSource
 import com.tele.app.tv.domain.usecase.StartTorrentStreamUseCase
+import com.tele.app.tv.ui.AppGraph
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,13 +17,18 @@ import kotlinx.coroutines.launch
 
 /** Orquesta el motor de torrents y expone su estado a la UI del reproductor. */
 class TorrentStreamViewModel(
-    private val engine: TorrentEngine
+    private val engine: TorrentEngine,
+    private val addons: AddonRepository = AppGraph.addons
 ) : ViewModel() {
 
     private val startTorrentStream = StartTorrentStreamUseCase(engine)
 
     private val _state = MutableStateFlow<TorrentStreamState>(TorrentStreamState.Resolving)
     val state: StateFlow<TorrentStreamState> = _state.asStateFlow()
+
+    /** Subtítulos en línea obtenidos para el contenido (Español, Inglés, Francés). */
+    private val _remoteSubtitles = MutableStateFlow<List<SubtitleSource>>(emptyList())
+    val remoteSubtitles: StateFlow<List<SubtitleSource>> = _remoteSubtitles.asStateFlow()
 
     /**
      * URL del stream, guardada aparte del estado de progreso.
@@ -75,9 +83,26 @@ class TorrentStreamViewModel(
         _actionNotification.value = null
     }
 
-    fun start(magnetUri: String, fileIndex: Int?) {
+    fun start(
+        magnetUri: String,
+        fileIndex: Int?,
+        mediaType: String? = null,
+        mediaId: String? = null
+    ) {
         if (job?.isActive == true) return
         _ready.value = null
+        _remoteSubtitles.value = emptyList()
+
+        if (mediaType != null && mediaId != null) {
+            viewModelScope.launch {
+                try {
+                    _remoteSubtitles.value = addons.subtitles(mediaType, mediaId)
+                } catch (_: Exception) {
+                    _remoteSubtitles.value = emptyList()
+                }
+            }
+        }
+
         job = viewModelScope.launch {
             startTorrentStream(magnetUri, fileIndex).collect { streamState ->
                 if (streamState is TorrentStreamState.Ready) {
@@ -92,6 +117,7 @@ class TorrentStreamViewModel(
         job?.cancel()
         job = null
         _ready.value = null
+        _remoteSubtitles.value = emptyList()
         engine.stop()
     }
 

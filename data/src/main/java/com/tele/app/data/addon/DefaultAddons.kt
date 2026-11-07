@@ -6,6 +6,7 @@ package com.tele.app.data.addon
  * Ambos son servicios públicos del ecosistema Stremio:
  *  - Cinemeta: catálogos y metadatos (usa IDs de IMDb, `tt...`).
  *  - Torrentio: convierte ese ID en fuentes torrent.
+ *  - OpenSubtitles v3: subtítulos multilingües (Español, Inglés, Francés).
  *
  * Nota: Torrentio es un servicio de terceros que puede cambiar de dominio o
  * dejar de responder; si eso pasa, basta con editar [URLS] (o, más adelante,
@@ -15,6 +16,7 @@ object DefaultAddons {
 
     const val CINEMETA = "https://v3-cinemeta.strem.io"
     const val TORRENTIO = "https://torrentio.strem.fun"
+    const val OPENSUBTITLES = "https://opensubtitles-v3.strem.io"
 
-    val URLS: List<String> = listOf(CINEMETA, TORRENTIO)
+    val URLS: List<String> = listOf(CINEMETA, TORRENTIO, OPENSUBTITLES)
 }

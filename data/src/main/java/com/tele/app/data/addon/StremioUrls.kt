@@ -41,6 +41,9 @@ object StremioUrls {
     fun stream(baseUrl: String, type: String, id: String): String =
         "${normalize(baseUrl)}/stream/$type/${encodePathId(id)}.json"
 
+    fun subtitles(baseUrl: String, type: String, id: String): String =
+        "${normalize(baseUrl)}/subtitles/$type/${encodePathId(id)}.json"
+
     /**
      * Codifica el valor de un extra. `URLEncoder` usa `+` para el espacio, que en
      * una ruta no significa "espacio": se reemplaza por `%20`.

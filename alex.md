@@ -1,6 +1,14 @@
 # Tele TV - Bitácora de Proyecto
 
 ## Último Realizado
+- **Soporte de subtítulos en línea multilingües (OpenSubtitles v3: Español, Inglés y Francés):**
+  - **Búsqueda automática por IMDb ID:** Se integró el addon oficial de subtítulos de Stremio (`https://opensubtitles-v3.strem.io`) en `AddonRepository` y `StremioAddonClient`. Consulta en segundo plano al reproducir cualquier película o serie (`tt...`).
+  - **Filtro y normalización de idiomas solicitados:**
+    - **Español:** Variantes completas (Latino `es-419` y Castellano `es-ES`), con prioridad de auto-selección en `PlayerScreen`.
+    - **Inglés:** Variantes `en`/`eng` (incluyendo marcas SDH).
+    - **Francés:** Variantes `fr`/`fre`/`fra`.
+  - **Inyección directa a ExoPlayer:** Las pistas remotas se inyectan como `SubtitleConfiguration` nativo (`application/x-subrip`) junto a los subtítulos locales y pistas embebidas del torrent (sin perder ninguna pista original del video).
+  - **Etiquetas claras en `[💬 Audio / Pistas]`:** Se distinguen claramente en el selector para que Alex pueda alternar cómodamente entre Español, Inglés o Francés con el control remoto.
 - **Ajuste de proporciones para 1080p y limpieza del reproductor:**
   - **Limpieza de controles del reproductor:** Se eliminó el botón redundante de subtítulos de la barra de reproducción; el botón de pistas ahora dice `[💬 Audio / Pistas]` y despliega el menú completo donde se eligen tanto el audio como los subtítulos en un solo lugar.
   - **Optimización de escala para 1080p (960×540 dp @ 320dpi):** Se redujo el tamaño de las carátulas en el catálogo de 180×270 dp a 130×195 dp (proporción 2:3 ágil) y los paddings excesivos, evitando la sensación de "pantalla gigante" y permitiendo ver múltiples filas y carátulas simultáneamente en la TV.

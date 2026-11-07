@@ -68,6 +68,9 @@ import androidx.media3.common.Player
 import androidx.media3.common.TrackGroup
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
+import com.tele.app.data.addon.model.SubtitleSource
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -171,14 +174,16 @@ private fun applyAudioSelection(player: ExoPlayer, item: AudioTrackItem) {
 }
 
 /**
- * Arma el `MediaItem` con los subtítulos sueltos del torrent.
+ * Arma el `MediaItem` con los subtítulos sueltos del torrent y los remotos (OpenSubtitles).
  *
- * Van como `SubtitleConfiguration` apuntando al servidor local: ExoPlayer los
- * pide por HTTP como cualquier otro recurso y Media3 los parsea según el
- * `mimeType` (SubRip, WebVTT o SSA).
+ * Van como `SubtitleConfiguration`: los locales apuntando al servidor HTTP local y
+ * los remotos directo a la CDN de Stremio. Media3 los parsea según el `mimeType`.
  */
-private fun buildMediaItem(info: TorrentStreamInfo): MediaItem {
-    val subtitles = info.subtitles.map { subtitle ->
+private fun buildMediaItem(
+    info: TorrentStreamInfo,
+    remoteSubtitles: List<SubtitleSource> = emptyList()
+): MediaItem {
+    val localSubtitles = info.subtitles.map { subtitle ->
         MediaItem.SubtitleConfiguration.Builder(Uri.parse(subtitle.url))
             .setMimeType(subtitle.contentType)
             .setLabel(subtitle.label)
@@ -187,9 +192,18 @@ private fun buildMediaItem(info: TorrentStreamInfo): MediaItem {
             .build()
     }
 
+    val onlineSubtitles = remoteSubtitles.map { sub ->
+        MediaItem.SubtitleConfiguration.Builder(Uri.parse(sub.url))
+            .setMimeType("application/x-subrip")
+            .setLabel(sub.label)
+            .setLanguage(sub.lang)
+            .setSelectionFlags(0)
+            .build()
+    }
+
     return MediaItem.Builder()
         .setUri(info.url)
-        .setSubtitleConfigurations(subtitles)
+        .setSubtitleConfigurations(localSubtitles + onlineSubtitles)
         .build()
 }
 
@@ -466,13 +480,26 @@ fun PlayerScreen(
 
     LaunchedEffect(request?.magnetUri, request?.fileIndex) {
         val playback = request ?: return@LaunchedEffect
-        viewModel.start(playback.magnetUri, playback.fileIndex)
+        viewModel.start(
+            playback.magnetUri,
+            playback.fileIndex,
+            playback.mediaType,
+            playback.mediaId
+        )
     }
 
     LaunchedEffect(readyInfo?.url) {
         val info = readyInfo ?: return@LaunchedEffect
         playerError = null
-        player.setMediaItem(buildMediaItem(info))
+
+        var onlineSubs = viewModel.remoteSubtitles.value
+        if (onlineSubs.isEmpty() && request?.mediaId != null) {
+            withTimeoutOrNull(1200) {
+                viewModel.remoteSubtitles.first { it.isNotEmpty() }
+            }?.let { onlineSubs = it }
+        }
+
+        player.setMediaItem(buildMediaItem(info, onlineSubs))
         player.prepare()
         player.play()
     }

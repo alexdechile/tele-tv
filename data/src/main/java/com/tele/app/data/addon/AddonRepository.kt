@@ -10,6 +10,7 @@ import com.tele.app.data.addon.model.MetaPreview
 import com.tele.app.data.addon.model.SearchFilters
 import com.tele.app.data.addon.model.SortOrder
 import com.tele.app.data.addon.model.StreamSource
+import com.tele.app.data.addon.model.SubtitleSource
 import com.tele.app.data.enrich.WikipediaEnricher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
@@ -95,6 +96,33 @@ class AddonRepository(
         sources
             .distinctBy { it.infoHash ?: it.url }
             .sortedByDescending { it.seeders ?: 0 }
+    }
+
+    /**
+     * Subtítulos remotos disponibles para un ítem (película, serie o episodio).
+     *
+     * Consulta los addons que proveen el recurso "subtitles" (OpenSubtitles v3)
+     * y devuelve pistas en Español, Inglés y Francés.
+     */
+    suspend fun subtitles(type: String, id: String): List<SubtitleSource> = coroutineScope {
+        val sources = addonUrls
+            .map { addonUrl ->
+                async {
+                    val manifest = manifest(addonUrl) ?: return@async emptyList<SubtitleSource>()
+                    if (!manifest.provides(RESOURCE_SUBTITLES)) return@async emptyList<SubtitleSource>()
+                    try {
+                        client.subtitles(addonUrl, type, id)
+                    } catch (cancellation: CancellationException) {
+                        throw cancellation
+                    } catch (error: Exception) {
+                        emptyList()
+                    }
+                }
+            }
+            .awaitAll()
+            .flatten()
+
+        sources.distinctBy { it.url }
     }
 
     // ---------------------------------------------------------------------
@@ -360,6 +388,7 @@ class AddonRepository(
         const val RESOURCE_CATALOG = "catalog"
         const val RESOURCE_META = "meta"
         const val RESOURCE_STREAM = "stream"
+        const val RESOURCE_SUBTITLES = "subtitles"
         const val TYPE_MOVIE = MetaPreview.TYPE_MOVIE
         const val TYPE_SERIES = MetaPreview.TYPE_SERIES
 

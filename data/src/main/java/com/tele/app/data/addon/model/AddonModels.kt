@@ -152,3 +152,11 @@ data class HomeRow(
     val title: String,
     val items: List<MetaPreview>
 )
+
+/** Subtítulo remoto provisto por un addon (OpenSubtitles u otros). */
+data class SubtitleSource(
+    val id: String,
+    val url: String,
+    val lang: String,
+    val label: String
+)

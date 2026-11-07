@@ -72,9 +72,9 @@ fun AppNavigator() {
             } else {
                 DetailScreen(
                     meta = meta,
-                    onPlay = { stream, subtitle ->
+                    onPlay = { stream, subtitle, mediaId ->
                         val title = listOfNotNull(meta.name, subtitle).joinToString(" · ")
-                        NavPayload.playback = stream.toPlaybackRequest(title)
+                        NavPayload.playback = stream.toPlaybackRequest(title, meta.type, mediaId ?: meta.id)
                         navController.navigate(ROUTE_PLAYER)
                     },
                     onPersonSelected = { person ->
@@ -94,7 +94,11 @@ fun AppNavigator() {
     }
 }
 
-private fun StreamSource.toPlaybackRequest(title: String?): PlaybackRequest? {
+private fun StreamSource.toPlaybackRequest(
+    title: String?,
+    mediaType: String? = null,
+    mediaId: String? = null
+): PlaybackRequest? {
     // Copias locales: `infoHash`/`url` vienen de otro modulo, y Kotlin no puede
     // hacer smart cast sobre properties publicas de un modulo distinto.
     val hash = infoHash
@@ -109,7 +113,9 @@ private fun StreamSource.toPlaybackRequest(title: String?): PlaybackRequest? {
     return PlaybackRequest(
         magnetUri = magnet,
         fileIndex = fileIndex,
-        title = title
+        title = title,
+        mediaType = mediaType,
+        mediaId = mediaId
     )
 }
 

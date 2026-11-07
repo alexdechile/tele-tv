@@ -6,7 +6,9 @@ import com.tele.app.data.addon.model.MetaPreview
 data class PlaybackRequest(
     val magnetUri: String,
     val fileIndex: Int?,
-    val title: String?
+    val title: String?,
+    val mediaType: String? = null,
+    val mediaId: String? = null
 )
 
 /**
